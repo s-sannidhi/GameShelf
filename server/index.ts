@@ -50,6 +50,7 @@ async function createApp(): Promise<express.Express> {
   }
 
   const app = express();
+  app.set('trust proxy', 1);
   const allowedOrigin = process.env.ALLOWED_ORIGIN ?? process.env.FRONTEND_URL ?? '';
   app.use(
     cors({
@@ -63,7 +64,7 @@ async function createApp(): Promise<express.Express> {
     secret: string;
     resave: boolean;
     saveUninitialized: boolean;
-    cookie: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; maxAge: number };
+    cookie: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; path: string; maxAge: number };
   }) => express.RequestHandler;
   app.use(
     sessionMiddleware({
@@ -75,6 +76,7 @@ async function createApp(): Promise<express.Express> {
         httpOnly: true,
         secure: isProd,
         sameSite: 'lax',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000,
       },
     })

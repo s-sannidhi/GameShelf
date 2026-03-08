@@ -41,7 +41,13 @@ router.post('/register', async (req, res) => {
       return res.status(500).json({ error: 'Registration failed' });
     }
     (req.session as SessionWithUserId).userId = user.id;
-    res.status(201).json({ id: user.id, username: user.username, email: user.email });
+    (req.session as { save: (cb: (err?: Error) => void) => void }).save((err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Registration failed' });
+      }
+      res.status(201).json({ id: user.id, username: user.username, email: user.email });
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Registration failed' });
@@ -63,7 +69,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     (req.session as SessionWithUserId).userId = user.id;
-    res.json({ id: user.id, username: user.username, email: user.email });
+    (req.session as { save: (cb: (err?: Error) => void) => void }).save((err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Login failed' });
+      }
+      res.json({ id: user.id, username: user.username, email: user.email });
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed' });
