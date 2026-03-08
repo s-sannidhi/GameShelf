@@ -99,6 +99,7 @@ router.get('/me', requireAuth, async (req, res) => {
       })
       .from(users)
       .where(eq(users.id, userId))
+      // @ts-ignore - limit(1) / res.json typed as 0-arg in Vercel/node16
       .limit(1);
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -110,7 +111,7 @@ router.get('/me', requireAuth, async (req, res) => {
       steamId: row.steamId ?? null,
       psnLinked: Boolean(row.psnRefreshToken?.trim()),
     };
-    // @ts-expect-error - Express res.json typed as 0-arg in some envs
+    // @ts-ignore - res.json typed as 0-arg in Vercel/node16
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -130,9 +131,10 @@ router.patch('/me', requireAuth, async (req, res) => {
           .select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken })
           .from(users)
           .where(eq(users.id, userId))
+          // @ts-ignore - limit(1) / res.json typed as 0-arg in Vercel/node16
           .limit(1);
         if (!u) return res.status(401).json({ error: 'Not authenticated' });
-        // @ts-expect-error - Express res.json typed as 0-arg in some envs
+        // @ts-ignore - res.json typed as 0-arg in Vercel/node16
         return res.json({
           id: u.id,
           username: u.username,
@@ -166,11 +168,12 @@ router.patch('/me', requireAuth, async (req, res) => {
       })
       .from(users)
       .where(eq(users.id, userId))
+      // @ts-ignore - limit(1) / res.json typed as 0-arg in Vercel/node16
       .limit(1);
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    // @ts-expect-error - Express res.json typed as 0-arg in some envs
+    // @ts-ignore - res.json typed as 0-arg in Vercel/node16
     res.json({
       id: row.id,
       username: row.username,

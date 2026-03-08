@@ -25,11 +25,11 @@ router.use(requireAuth);
 router.post('/auto', async (req, res) => {
   const userId = (req.session as SessionWithUserId)?.userId;
   if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
-  // @ts-expect-error - Drizzle limit(1) typed as 0-arg in some envs
   const [user] = await db
     .select({ steamId: users.steamId, psnRefreshToken: users.psnRefreshToken })
     .from(users)
     .where(eq(users.id, userId))
+    // @ts-ignore - limit(1) typed as 0-arg in Vercel/node16
     .limit(1);
   if (!user) {
     return res.status(401).json({ error: 'Not authenticated' });
