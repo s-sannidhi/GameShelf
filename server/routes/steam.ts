@@ -46,6 +46,54 @@ export function steamHeaderUrl(appId: number): string {
   return `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
 }
 
+/** Steam CDN capsule (616x353) and hero capsule – good for box-style art. */
+function steamCapsuleUrl(appId: number): string {
+  return `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/capsule_616x353.jpg`;
+}
+function steamHeroCapsuleUrl(appId: number): string {
+  return `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/hero_capsule.jpg`;
+}
+
+export interface SteamStoreArt {
+  boxArtUrl: string;
+  coverUrl: string;
+  screenshots: string[];
+}
+
+/**
+ * Fetch official art and screenshots from Steam Store API (no key required).
+ * Returns null if app not found or request fails.
+ */
+export async function fetchSteamStoreArt(appId: number): Promise<SteamStoreArt | null> {
+  try {
+    const url = `https://store.steampowered.com/api/appdetails?appids=${appId}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = (await res.json()) as Record<string, { success?: boolean; data?: unknown }>;
+    const entry = data[String(appId)];
+    if (!entry?.success || !entry.data) return null;
+    const d = entry.data as {
+      header_image?: string;
+      screenshots?: Array<{ path_full?: string }>;
+    };
+    const header = d.header_image?.trim() || steamHeaderUrl(appId);
+    const capsule = steamCapsuleUrl(appId);
+    const screenshots: string[] = [];
+    if (Array.isArray(d.screenshots)) {
+      for (const s of d.screenshots) {
+        if (s.path_full?.trim()) screenshots.push(s.path_full.trim());
+      }
+    }
+    return {
+      boxArtUrl: capsule,
+      coverUrl: header,
+      screenshots,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** 64-bit Steam IDs are 17 digits. */
 export const STEAM_ID64_REGEX = /^\d{17}$/;
 
@@ -106,13 +154,20 @@ export async function runSteamSyncForUser(
   const now = new Date().toISOString();
   const canonicalCache = new Map<string, string | null>();
   const igdbArtCache = new Map<string, string | null>();
+  const steamStoreArtCache = new Map<number, SteamStoreArt | null>();
   let userGames = await db.select().from(games).where(eq(games.userId, userId));
   let added = 0;
   let updated = 0;
   const mergedIds = new Set<number>();
   for (const g of list) {
     const externalId = String(g.appid);
-    const steamCover = steamHeaderUrl(g.appid);
+    const appId = g.appid;
+    let steamStoreArt = steamStoreArtCache.get(appId);
+    if (steamStoreArt === undefined) {
+      steamStoreArt = await fetchSteamStoreArt(appId);
+      steamStoreArtCache.set(appId, steamStoreArt);
+    }
+    const steamCover = steamHeaderUrl(appId);
     const playtimeMinutes = g.playtime_forever ?? 0;
     let existing = await db.select().from(games).where(and(eq(games.userId, userId), eq(games.externalId, externalId), eq(games.source, 'steam')));
     let canonicalId: string | null = null;
@@ -164,26 +219,35 @@ export async function runSteamSyncForUser(
     }
     let coverUrl = steamCover;
     let boxArtUrl = steamCover;
-    const igdbCacheKey = `${g.name.trim().toLowerCase()}\n${canonicalId ?? ''}`;
-    if (!igdbArtCache.has(igdbCacheKey)) {
-      igdbArtCache.set(igdbCacheKey, await getIgdbBoxArtForGame(g.name, canonicalId));
-    }
-    const igdbArt = igdbArtCache.get(igdbCacheKey);
-    if (igdbArt) {
-      coverUrl = igdbArt;
-      boxArtUrl = igdbArt;
+    let screenshotsJson: string | null = null;
+    if (steamStoreArt) {
+      coverUrl = steamStoreArt.coverUrl;
+      boxArtUrl = steamStoreArt.boxArtUrl;
+      screenshotsJson = steamStoreArt.screenshots.length > 0 ? JSON.stringify(steamStoreArt.screenshots) : null;
+    } else {
+      const igdbCacheKey = `${g.name.trim().toLowerCase()}\n${canonicalId ?? ''}`;
+      if (!igdbArtCache.has(igdbCacheKey)) {
+        igdbArtCache.set(igdbCacheKey, await getIgdbBoxArtForGame(g.name, canonicalId));
+      }
+      const igdbArt = igdbArtCache.get(igdbCacheKey);
+      if (igdbArt) {
+        coverUrl = igdbArt;
+        boxArtUrl = igdbArt;
+      }
     }
     if (existing.length > 0) {
       const existingGame = existing[0];
-      // Preserve manually set art: only overwrite cover/boxArt if the game has none yet
+      // Preserve manually set art: only overwrite cover/boxArt/screenshots if the game has none yet
       const keepCover = existingGame.coverUrl?.trim();
       const keepBoxArt = existingGame.boxArtUrl?.trim();
+      const keepScreenshots = existingGame.screenshots?.trim();
       await db
         .update(games)
         .set({
           name: g.name,
           coverUrl: keepCover ? existingGame.coverUrl : coverUrl,
           boxArtUrl: keepBoxArt ? existingGame.boxArtUrl : boxArtUrl,
+          screenshots: keepScreenshots ? existingGame.screenshots : screenshotsJson,
           playtimeMinutes: (playtimeMinutes || existingGame.playtimeMinutes) ?? null,
           externalId,
           source: 'steam',
@@ -203,6 +267,7 @@ export async function runSteamSyncForUser(
         canonicalId: canonicalId ?? null,
         coverUrl,
         boxArtUrl,
+        screenshots: screenshotsJson,
         playtimeMinutes: playtimeMinutes || null,
         createdAt: now,
         updatedAt: now,
@@ -260,6 +325,20 @@ router.get('/owned-games', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Steam request failed' });
+  }
+});
+
+/** GET /api/steam/store-art/:appId – official Steam Store art and screenshots (no API key). */
+router.get('/store-art/:appId', async (req, res) => {
+  try {
+    const appId = parseInt(req.params.appId, 10);
+    if (isNaN(appId) || appId <= 0) return res.status(400).json({ error: 'Invalid app ID' });
+    const art = await fetchSteamStoreArt(appId);
+    if (!art) return res.status(404).json({ error: 'Steam store art not found for this app' });
+    res.json(art);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch Steam store art' });
   }
 });
 

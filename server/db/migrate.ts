@@ -46,6 +46,11 @@ async function runMigrationsTurso(): Promise<void> {
   if (!columns.includes('user_id')) await client.execute('ALTER TABLE games ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;');
   if (!columns.includes('box_art_url')) await client.execute('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
   if (!columns.includes('canonical_id')) await client.execute('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
+  if (!columns.includes('screenshots')) await client.execute('ALTER TABLE games ADD COLUMN screenshots TEXT;');
+  if (!columns.includes('developer')) await client.execute('ALTER TABLE games ADD COLUMN developer TEXT;');
+  if (!columns.includes('publisher')) await client.execute('ALTER TABLE games ADD COLUMN publisher TEXT;');
+  if (!columns.includes('trailer_url')) await client.execute('ALTER TABLE games ADD COLUMN trailer_url TEXT;');
+  if (!columns.includes('tags')) await client.execute('ALTER TABLE games ADD COLUMN tags TEXT;');
 
   const userTableInfo = await client.execute({ sql: 'PRAGMA table_info(users)', args: [] });
   const userColumns = (userTableInfo.rows as unknown as { name: string }[]).map((r) => r.name);
@@ -135,6 +140,11 @@ function runMigrationsSqlite(): void {
   if (!tableInfo.some((c) => c.name === 'user_id')) sqlite.exec('ALTER TABLE games ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;');
   if (!tableInfo.some((c) => c.name === 'box_art_url')) sqlite.exec('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
   if (!tableInfo.some((c) => c.name === 'canonical_id')) sqlite.exec('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
+  if (!tableInfo.some((c) => c.name === 'screenshots')) sqlite.exec('ALTER TABLE games ADD COLUMN screenshots TEXT;');
+  if (!tableInfo.some((c) => c.name === 'developer')) sqlite.exec('ALTER TABLE games ADD COLUMN developer TEXT;');
+  if (!tableInfo.some((c) => c.name === 'publisher')) sqlite.exec('ALTER TABLE games ADD COLUMN publisher TEXT;');
+  if (!tableInfo.some((c) => c.name === 'trailer_url')) sqlite.exec('ALTER TABLE games ADD COLUMN trailer_url TEXT;');
+  if (!tableInfo.some((c) => c.name === 'tags')) sqlite.exec('ALTER TABLE games ADD COLUMN tags TEXT;');
 
   const userTableInfo = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
   if (!userTableInfo.some((c) => c.name === 'steam_id')) sqlite.exec('ALTER TABLE users ADD COLUMN steam_id TEXT;');

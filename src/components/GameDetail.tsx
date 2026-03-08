@@ -27,6 +27,16 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
   const [refreshArtLoading, setRefreshArtLoading] = useState(false);
   const [refreshArtError, setRefreshArtError] = useState<string | null>(null);
 
+  function parseScreenshots(s: string | null | undefined): string[] {
+    if (!s?.trim()) return [];
+    try {
+      const arr = JSON.parse(s) as unknown;
+      return Array.isArray(arr) ? arr.filter((u): u is string => typeof u === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
   useEffect(() => {
     if (game) {
       setForm({
@@ -34,22 +44,34 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
         playtimeMinutes: game.playtimeMinutes ?? undefined,
         rating: game.rating ?? undefined,
         notes: game.notes ?? undefined,
+        storeUrl: game.storeUrl ?? undefined,
+        description: game.description ?? undefined,
+        genres: game.genres ?? undefined,
+        developer: game.developer ?? undefined,
+        publisher: game.publisher ?? undefined,
+        trailerUrl: game.trailerUrl ?? undefined,
+        tags: game.tags ?? undefined,
       });
       setError(null);
       setCarouselIndex(0);
       setArtResults(null);
       setArtError(null);
       setRefreshArtError(null);
+      const stored = parseScreenshots(game.screenshots);
       const fallback = game.boxArtUrl ?? game.coverUrl;
-      setCarouselImages(fallback ? [fallback] : []);
-      if (game.externalId) {
-        metadataApi
-          .getGame(game.externalId)
-          .then(({ boxArtUrl, screenshots }) => {
-            const list = [boxArtUrl, ...(screenshots ?? [])].filter(Boolean) as string[];
-            if (list.length) setCarouselImages(list);
-          })
-          .catch(() => {});
+      if (stored.length > 0) {
+        setCarouselImages(stored);
+      } else {
+        setCarouselImages(fallback ? [fallback] : []);
+        if (game.externalId) {
+          metadataApi
+            .getGame(game.externalId)
+            .then(({ boxArtUrl, screenshots }) => {
+              const list = [boxArtUrl, ...(screenshots ?? [])].filter(Boolean) as string[];
+              if (list.length) setCarouselImages(list);
+            })
+            .catch(() => {});
+        }
       }
     }
   }, [game]);
@@ -83,14 +105,15 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
       } catch {
         // use result.coverUrl only
       }
+      const newImages = [boxArtUrl, ...screenshots].filter(Boolean) as string[];
       const updated = await gamesApi.update(game.id, {
         coverUrl: result.coverUrl ?? game.coverUrl,
         boxArtUrl: boxArtUrl ?? result.coverUrl ?? game.boxArtUrl,
         externalId: String(result.id),
+        screenshots: newImages.length > 0 ? JSON.stringify(newImages) : null,
         ...(result.summary != null && { description: result.summary }),
         ...(result.releaseDate != null && { releaseDate: result.releaseDate }),
       });
-      const newImages = [boxArtUrl, ...screenshots].filter(Boolean) as string[];
       if (newImages.length) setCarouselImages(newImages);
       setCarouselIndex(0);
       onUpdate(updated);
@@ -107,7 +130,10 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
     setRefreshArtError(null);
     try {
       const updated = await gamesApi.refreshArt(game.id);
-      setCarouselImages(updated.boxArtUrl ? [updated.boxArtUrl] : carouselImages);
+      const stored = parseScreenshots(updated.screenshots);
+      if (stored.length > 0) setCarouselImages(stored);
+      else if (updated.boxArtUrl) setCarouselImages([updated.boxArtUrl]);
+      setCarouselIndex(0);
       onUpdate(updated);
     } catch (e) {
       setRefreshArtError(e instanceof Error ? e.message : 'Failed to refresh art');
@@ -294,29 +320,109 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
                 {game.releaseDate && (
                   <p className="detail-release">Released: {game.releaseDate}</p>
                 )}
+                {(game.developer || game.publisher) && (
+                  <p className="detail-developer-publisher">
+                    {[game.developer, game.publisher].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 {game.storeUrl && (
                   <a href={game.storeUrl} target="_blank" rel="noopener noreferrer" className="detail-store-link">
                     View on store
                   </a>
                 )}
+                {game.trailerUrl && (
+                  <a href={game.trailerUrl} target="_blank" rel="noopener noreferrer" className="detail-store-link">
+                    Watch trailer
+                  </a>
+                )}
               </div>
             </div>
-            {game.description && (
-              <section className="detail-section">
-                <h3>About</h3>
-                <p className="detail-description">{game.description}</p>
-              </section>
-            )}
+            <section className="detail-section">
+              <h3>Details</h3>
+              <div className="detail-form">
+                <label>
+                  Store URL
+                  <input
+                    type="url"
+                    placeholder="https://…"
+                    value={form.storeUrl ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, storeUrl: e.target.value || null }))}
+                  />
+                </label>
+                <label>
+                  Description
+                  <textarea
+                    placeholder="About this game…"
+                    value={form.description ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value || null }))}
+                    rows={3}
+                  />
+                </label>
+                <label>
+                  Genres
+                  <input
+                    type="text"
+                    placeholder="Action, RPG, …"
+                    value={form.genres ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, genres: e.target.value || null }))}
+                  />
+                </label>
+                <label>
+                  Developer
+                  <input
+                    type="text"
+                    placeholder="Studio name"
+                    value={form.developer ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, developer: e.target.value || null }))}
+                  />
+                </label>
+                <label>
+                  Publisher
+                  <input
+                    type="text"
+                    placeholder="Publisher name"
+                    value={form.publisher ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, publisher: e.target.value || null }))}
+                  />
+                </label>
+                <label>
+                  Trailer / video URL
+                  <input
+                    type="url"
+                    placeholder="https://…"
+                    value={form.trailerUrl ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, trailerUrl: e.target.value || null }))}
+                  />
+                </label>
+                <label>
+                  Tags
+                  <input
+                    type="text"
+                    placeholder="Comma-separated tags"
+                    value={form.tags ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value || null }))}
+                  />
+                </label>
+              </div>
+            </section>
             <section className="detail-section">
               <h3>Cover art</h3>
-              <p className="detail-art-search-hint">Update this game&apos;s cover art from IGDB (Twitch API), or RAWG if configured as fallback.</p>
+              <p className="detail-art-search-hint">
+                {game.source === 'steam' && game.externalId
+                  ? 'Steam games use official store art by default. Refresh to fetch latest screenshots and capsule art.'
+                  : 'Update this game\'s cover art from IGDB (Twitch API), or RAWG if configured as fallback.'}
+              </p>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={handleRefreshArt}
                 disabled={refreshArtLoading}
               >
-                {refreshArtLoading ? 'Refreshing…' : 'Refresh art from IGDB'}
+                {refreshArtLoading
+                  ? 'Refreshing…'
+                  : game.source === 'steam' && game.externalId
+                    ? 'Refresh from Steam store'
+                    : 'Refresh art from IGDB'}
               </button>
               {refreshArtError && <p className="detail-art-search-error">{refreshArtError}</p>}
             </section>

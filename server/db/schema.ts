@@ -20,6 +20,7 @@ export const games = sqliteTable('games', {
   source: text('source').notNull().default('manual'),
   coverUrl: text('cover_url'),
   boxArtUrl: text('box_art_url'),
+  screenshots: text('screenshots'), // JSON array of image URLs
   description: text('description'),
   releaseDate: text('release_date'),
   genres: text('genres'),
@@ -28,6 +29,10 @@ export const games = sqliteTable('games', {
   rating: integer('rating'),
   notes: text('notes'),
   storeUrl: text('store_url'),
+  developer: text('developer'),
+  publisher: text('publisher'),
+  trailerUrl: text('trailer_url'),
+  tags: text('tags'), // comma-separated
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

@@ -16,6 +16,7 @@ export interface Game {
   source: string;
   coverUrl: string | null;
   boxArtUrl: string | null;
+  screenshots: string | null; // JSON array of URLs
   description: string | null;
   releaseDate: string | null;
   genres: string | null;
@@ -24,6 +25,10 @@ export interface Game {
   rating: number | null;
   notes: string | null;
   storeUrl: string | null;
+  developer: string | null;
+  publisher: string | null;
+  trailerUrl: string | null;
+  tags: string | null;
   createdAt: string;
   updatedAt: string;
 }

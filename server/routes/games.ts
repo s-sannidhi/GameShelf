@@ -5,6 +5,7 @@ import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
 import type { SessionWithUserId } from '../types/session.js';
 import { getIgdbBoxArtForGame } from './metadata.js';
+import { fetchSteamStoreArt } from './steam.js';
 
 function getUserId(req: { session?: SessionWithUserId }): number | undefined {
   return (req.session as SessionWithUserId | undefined)?.userId;
@@ -81,11 +82,16 @@ router.post('/', async (req, res) => {
       canonicalId?: string;
       coverUrl?: string;
       boxArtUrl?: string;
+      screenshots?: string[];
       description?: string;
       releaseDate?: string;
       genres?: string;
       playtimeMinutes?: number;
       storeUrl?: string;
+      developer?: string;
+      publisher?: string;
+      trailerUrl?: string;
+      tags?: string;
     };
     if (!body.name?.trim()) {
       return res.status(400).json({ error: 'Name is required' });
@@ -94,6 +100,8 @@ router.post('/', async (req, res) => {
     const canonicalId =
       body.canonicalId ??
       (typeof body.externalId === 'string' && /^(rawg|igdb):\d+/.test(body.externalId) ? body.externalId : null);
+    const screenshotsVal =
+      Array.isArray(body.screenshots) && body.screenshots.length > 0 ? JSON.stringify(body.screenshots) : null;
     const [inserted] = await db
       .insert(games)
       .values({
@@ -105,6 +113,7 @@ router.post('/', async (req, res) => {
         canonicalId,
         coverUrl: body.coverUrl ?? null,
         boxArtUrl: body.boxArtUrl ?? null,
+        screenshots: screenshotsVal,
         description: body.description ?? null,
         releaseDate: body.releaseDate ?? null,
         genres: body.genres ?? null,
@@ -113,6 +122,10 @@ router.post('/', async (req, res) => {
         rating: null,
         notes: null,
         storeUrl: body.storeUrl ?? null,
+        developer: body.developer ?? null,
+        publisher: body.publisher ?? null,
+        trailerUrl: body.trailerUrl ?? null,
+        tags: body.tags ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -124,7 +137,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-/** PATCH /games/:id/refresh-art – fetch IGDB box art and update game cover/boxArt. */
+/** PATCH /games/:id/refresh-art – Steam games: try Steam Store first (official art + screenshots); else IGDB/RAWG. */
 router.patch('/:id/refresh-art', async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -133,14 +146,37 @@ router.patch('/:id/refresh-art', async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.userId, userId)));
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    const igdbArt = await getIgdbBoxArtForGame(game.name, game.canonicalId);
-    if (!igdbArt) {
-      return res.status(404).json({ error: 'No art found for this game. Configure Twitch/IGDB or RAWG API in .env.' });
-    }
     const now = new Date().toISOString();
+    let coverUrl: string | null = null;
+    let boxArtUrl: string | null = null;
+    let screenshotsJson: string | null = null;
+    if (game.source === 'steam' && game.externalId != null && /^\d+$/.test(String(game.externalId).trim())) {
+      const appId = parseInt(String(game.externalId), 10);
+      const steamArt = await fetchSteamStoreArt(appId);
+      if (steamArt) {
+        coverUrl = steamArt.coverUrl;
+        boxArtUrl = steamArt.boxArtUrl;
+        screenshotsJson = steamArt.screenshots.length > 0 ? JSON.stringify(steamArt.screenshots) : null;
+      }
+    }
+    if (!coverUrl || !boxArtUrl) {
+      const igdbArt = await getIgdbBoxArtForGame(game.name, game.canonicalId);
+      if (igdbArt) {
+        coverUrl = igdbArt;
+        boxArtUrl = igdbArt;
+      }
+    }
+    if (!coverUrl || !boxArtUrl) {
+      return res.status(404).json({ error: 'No art found for this game. Try Steam store (if Steam game) or configure Twitch/IGDB or RAWG API in .env.' });
+    }
     const [updated] = await db
       .update(games)
-      .set({ coverUrl: igdbArt, boxArtUrl: igdbArt, updatedAt: now })
+      .set({
+        coverUrl,
+        boxArtUrl,
+        ...(screenshotsJson != null && { screenshots: screenshotsJson }),
+        updatedAt: now,
+      })
       .where(and(eq(games.id, id), eq(games.userId, userId)))
       .returning();
     if (!updated) return res.status(404).json({ error: 'Game not found' });
@@ -162,6 +198,7 @@ router.patch('/:id', async (req, res) => {
       platform: string;
       coverUrl: string;
       boxArtUrl: string;
+      screenshots: string[];
       canonicalId: string;
       description: string;
       releaseDate: string;
@@ -171,9 +208,16 @@ router.patch('/:id', async (req, res) => {
       rating: number | null;
       notes: string | null;
       storeUrl: string;
+      developer: string;
+      publisher: string;
+      trailerUrl: string;
+      tags: string;
     }>;
     const now = new Date().toISOString();
-    const updateObj = { ...body, updatedAt: now };
+    const updateObj: Record<string, unknown> = { ...body, updatedAt: now };
+    if (Array.isArray(body.screenshots)) {
+      updateObj.screenshots = body.screenshots.length > 0 ? JSON.stringify(body.screenshots) : null;
+    }
     const [updated] = await db
       .update(games)
       .set(updateObj as typeof games.$inferInsert)
