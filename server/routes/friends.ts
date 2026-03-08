@@ -18,13 +18,9 @@ router.get('/', async (req, res) => {
     if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const rows = await db.select().from(friendships).where(or(eq(friendships.userId, userId), eq(friendships.friendId, userId)));
     const friendIds = [...new Set(rows.map((r) => (r.userId === userId ? r.friendId : r.userId)))];
-    if (friendIds.length === 0) {
-      // @ts-ignore - res.json typed as 0-arg in Vercel/node16
-      return res.json([]);
-    }
+    if (friendIds.length === 0) return (res as { json: (b: unknown) => void }).json([]);
     const friends = await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, friendIds));
-    // @ts-ignore - res.json typed as 0-arg in Vercel/node16
-    res.json(friends);
+    (res as { json: (b: unknown) => void }).json(friends);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch friends' });
@@ -66,8 +62,7 @@ router.post('/request', async (req, res) => {
       .insert(friendRequests)
       .values({ fromUserId: userId, toUserId: target.id, status: 'pending', createdAt: now })
       .returning();
-    // @ts-ignore - res.json typed as 0-arg in Vercel/node16
-    res.status(201).json({ id: reqRow!.id, toUserId: target.id, username: target.username });
+    (res as { status: (code: number) => { json: (b: unknown) => void } }).status(201).json({ id: reqRow!.id, toUserId: target.id, username: target.username });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to send request' });

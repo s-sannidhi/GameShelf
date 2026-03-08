@@ -89,18 +89,8 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const userId = (req.session as SessionWithUserId)?.userId;
     if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
-    const [row] = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        steamId: users.steamId,
-        psnRefreshToken: users.psnRefreshToken,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      // @ts-ignore - limit(1) / res.json typed as 0-arg in Vercel/node16
-      .limit(1);
+    const q1 = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
+    const [row] = await (q1 as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -111,8 +101,7 @@ router.get('/me', requireAuth, async (req, res) => {
       steamId: row.steamId ?? null,
       psnLinked: Boolean(row.psnRefreshToken?.trim()),
     };
-    // @ts-ignore - res.json typed as 0-arg in Vercel/node16
-    res.json(user);
+    (res as { json: (b: unknown) => void }).json(user);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to get user' });
@@ -127,15 +116,10 @@ router.patch('/me', requireAuth, async (req, res) => {
     if (body.steamId !== undefined) {
       if (body.steamId === null || (typeof body.steamId === 'string' && !body.steamId.trim())) {
         await db.update(users).set({ steamId: null }).where(eq(users.id, userId));
-        const [u] = await db
-          .select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken })
-          .from(users)
-          .where(eq(users.id, userId))
-          // @ts-ignore - limit(1) / res.json typed as 0-arg in Vercel/node16
-          .limit(1);
+        const qu = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
+        const [u] = await (qu as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
         if (!u) return res.status(401).json({ error: 'Not authenticated' });
-        // @ts-ignore - res.json typed as 0-arg in Vercel/node16
-        return res.json({
+        return (res as { json: (b: unknown) => void }).json({
           id: u.id,
           username: u.username,
           email: u.email,
@@ -158,23 +142,12 @@ router.patch('/me', requireAuth, async (req, res) => {
       }
       await db.update(users).set({ steamId: steamId64 }).where(eq(users.id, userId));
     }
-    const [row] = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        steamId: users.steamId,
-        psnRefreshToken: users.psnRefreshToken,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      // @ts-ignore - limit(1) / res.json typed as 0-arg in Vercel/node16
-      .limit(1);
+    const q2 = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
+    const [row] = await (q2 as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    // @ts-ignore - res.json typed as 0-arg in Vercel/node16
-    res.json({
+    (res as { json: (b: unknown) => void }).json({
       id: row.id,
       username: row.username,
       email: row.email,
