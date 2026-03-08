@@ -55,7 +55,10 @@ router.post('/register', async (req, res) => {
     (req.session as { save: (cb: (err?: Error) => void) => void }).save((err) => {
       if (err) {
         console.error('[auth] register session.save', err);
-        if (!res.headersSent) res.status(500).json({ error: 'Registration failed' });
+        if (!res.headersSent) {
+          const msg = process.env.EXPOSE_API_ERROR === '1' && err instanceof Error ? err.message : 'Registration failed';
+          res.status(500).json({ error: msg });
+        }
         return;
       }
       if (!res.headersSent) {
@@ -87,14 +90,20 @@ router.post('/login', async (req, res) => {
     (req.session as { save: (cb: (err?: Error) => void) => void }).save((err) => {
       if (err) {
         console.error('[auth] login session.save', err);
-        if (!res.headersSent) res.status(500).json({ error: 'Login failed' });
+        if (!res.headersSent) {
+          const msg = process.env.EXPOSE_API_ERROR === '1' && err instanceof Error ? err.message : 'Login failed';
+          res.status(500).json({ error: msg });
+        }
         return;
       }
       sendJson(res, { id: user.id, username: user.username, email: user.email });
     });
   } catch (err) {
     console.error('[auth] login', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Login failed' });
+    if (!res.headersSent) {
+      const msg = process.env.EXPOSE_API_ERROR === '1' && err instanceof Error ? err.message : 'Login failed';
+      res.status(500).json({ error: msg });
+    }
   }
 });
 
@@ -134,7 +143,10 @@ router.get('/me', requireAuth, async (req, res) => {
     sendJson(res, user);
   } catch (err) {
     console.error('[auth] get /me', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to get user' });
+    if (!res.headersSent) {
+      const msg = process.env.EXPOSE_API_ERROR === '1' && err instanceof Error ? err.message : 'Failed to get user';
+      res.status(500).json({ error: msg });
+    }
   }
 });
 

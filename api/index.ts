@@ -27,8 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   } catch (err) {
     console.error('[api]', err);
     if (!res.headersSent) {
-      const isProd = process.env.NODE_ENV === 'production';
-      const message = isProd ? 'Server error' : (err instanceof Error ? err.message : 'Server error');
+      const expose = process.env.EXPOSE_API_ERROR === '1' || process.env.NODE_ENV !== 'production';
+      const message = expose && err instanceof Error ? err.message : 'Server error';
       res.status(500).json({ error: message });
     }
   }

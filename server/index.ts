@@ -58,7 +58,13 @@ async function createApp(): Promise<express.Express> {
       credentials: true,
     })
   );
-  app.use(express.json());
+  // On Vercel, body is pre-parsed on req.body; avoid express.json() overwriting it with {}
+  app.use((req, res, next) => {
+    if (isVercel && (req as express.Request & { body?: unknown }).body != null && typeof (req as express.Request & { body?: unknown }).body === 'object') {
+      return next();
+    }
+    express.json()(req, res, next);
+  });
   const sessionMiddleware = require('express-session') as (options: {
     store: SessionStoreLike;
     secret: string;
@@ -96,7 +102,8 @@ async function createApp(): Promise<express.Express> {
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('[Express]', err);
     if (res.headersSent) return;
-    const message = isProd ? 'Server error' : (err instanceof Error ? err.message : 'Server error');
+    const expose = process.env.EXPOSE_API_ERROR === '1' || !isProd;
+    const message = expose && err instanceof Error ? err.message : 'Server error';
     res.status(500).json({ error: message });
   });
 

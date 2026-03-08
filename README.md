@@ -46,52 +46,50 @@ A web app to manage your game library. Sign in with an account, add games (with 
 - `npm run db:generate` – Generate Drizzle migrations.
 - `npm run db:push` – Push schema to the database.
 
-## Deployment (Vercel + backend host)
+## Deployment (recommended: Vercel frontend + Render backend)
 
-The app splits into a **frontend** (static) and **backend** (Node + SQLite). Vercel serves the frontend; the backend runs on a host that supports long-running Node. Good options:
+**Recommended:** Run the **frontend on Vercel** (static SPA) and the **backend on Render** (or Fly.io). This avoids serverless limits and keeps Express, sessions, and SQLite on a normal Node server.
 
-- **[Render](https://render.com)** – Free tier, connect GitHub repo, add a Web Service. Persistent disk optional for SQLite.
-- **[Fly.io](https://fly.io)** – Free tier, CLI deploy, attach a [volume](https://fly.io/docs/reference/volumes/) for persistent SQLite.
-- **[Koyeb](https://www.koyeb.com)**, **[Cyclic](https://www.cyclic.sh)** – Other Node-friendly hosts.
+### 1. Deploy the backend (Render)
 
-### 1. Deploy the backend (e.g. Render or Fly.io)
+1. Go to [Render](https://render.com) → **New** → **Web Service**.
+2. Connect your GitHub repo and select this project.
+3. **Build command:** `npm install`
+4. **Start command:** `npm start`
+5. **Environment variables** (in Render dashboard):
+   - `NODE_ENV` = `production`
+   - `SESSION_SECRET` = a long random string (e.g. `openssl rand -hex 32`)
+   - `ALLOWED_ORIGIN` = your Vercel URL, e.g. `https://your-app.vercel.app` (no trailing slash)
+   - Optional: `RAWG_API_KEY`, `STEAM_API_KEY`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (see `.env.example`)
+6. Deploy. The server creates `data/library.db` and `data/sessions.db` on the ephemeral disk. For **persistent data**, add a **Disk** in Render and mount it (e.g. `data`), or use **Turso** (see below).
+7. Copy your backend URL (e.g. `https://your-app.onrender.com`).
 
-- Deploy the **whole repo** and run the **Node server** (not the Vite dev server).
-- **Start command**: `npm start` (runs `tsx server/index.ts`). If your host runs `npm install --production`, add `tsx` to `dependencies` in `package.json`, or use a build step that compiles the server and run `node dist/server/index.js`.
-- **Env vars**: Copy `.env.example` and set SESSION_SECRET, RAWG/Steam/Twitch as needed. Set **ALLOWED_ORIGIN** to your Vercel frontend URL (e.g. `https://your-project.vercel.app`). Comma-separated for multiple origins.
-- **Database**: The server creates `data/library.db` and `data/sessions.db` on first run. Use a **persistent disk/volume** so data survives restarts; otherwise the DB is ephemeral.
-- Note your backend URL (e.g. `https://your-app.onrender.com` or `https://your-app.fly.dev`).
+### 2. Deploy the frontend (Vercel)
 
-### 2. Deploy the frontend to Vercel
+1. Import the repo at [Vercel](https://vercel.com). The repo’s `vercel.json` is used (frontend-only; no API on Vercel).
+2. **Environment variable:** `VITE_API_URL` = your backend URL from step 1 (no trailing slash), e.g. `https://your-app.onrender.com`.
+3. Deploy. The app will call your backend for all `/api` requests.
 
-- Import the repo into [Vercel](https://vercel.com). The repo’s `vercel.json` is used automatically.
-- **Build**: Uses `npm run build:client`, output directory `dist`.
-- **Env var**: Set **VITE_API_URL** to your backend URL (no trailing slash). Redeploy after adding it.
-- The site will call your backend for all `/api` requests.
+### 3. Backend on Fly.io (alternative)
 
-### 3. Full-stack on Vercel (frontend + API on one project)
+- **Start:** `npm start`
+- **Persistent SQLite:** Add a [volume](https://fly.io/docs/reference/volumes/) and mount it so `data/` persists.
+- Set `ALLOWED_ORIGIN` to your Vercel frontend URL.
 
-You can run both the frontend and the API on Vercel using **Turso** (SQLite-compatible, serverless-friendly DB) and the repo’s `api/` serverless route.
+### 4. Backend with Turso (no local SQLite)
 
-1. **Turso database**  
-   Create a database at [turso.tech](https://turso.tech), then get:
-   - **Database URL** (e.g. `libsql://your-db-name.turso.io`)
-   - **Auth token** (for the DB)
+If you prefer a hosted DB instead of SQLite on the backend host:
 
-2. **Vercel project**  
-   Import the repo and add **Environment variables** (for Production and Preview if you want):
-   - `TURSO_DATABASE_URL` = your Turso database URL  
-   - `TURSO_AUTH_TOKEN` = your Turso auth token  
-   - `SESSION_SECRET` = a long random string  
-   - Plus any of: `RAWG_API_KEY`, `STEAM_API_KEY`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (same as in `.env.example`).
+- Create a DB at [turso.tech](https://turso.tech) and get **Database URL** and **Auth token**.
+- On Render (or Fly), add env vars: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`. The server will use Turso instead of SQLite; no disk needed for the DB.
 
-3. **Do not set** `VITE_API_URL` – the app is same-origin so `/api` is used automatically.
+### 5. Single-host (no Vercel)
 
-4. Deploy. The app builds the frontend (Vite) and the `api/[[...path]]` serverless function; migrations run on first API request.
+Run everything on one Node host (e.g. Render only): build with `npm run build`, start with `npm start`. The server serves `dist/` and `/api`. Do **not** set `VITE_API_URL` or `ALLOWED_ORIGIN`.
 
-### 4. Optional: single-host deployment (no Vercel)
+### 6. Optional: full-stack on Vercel (advanced)
 
-If you run the **entire app** on one Node host (e.g. Render or Fly only, no Vercel), set `NODE_ENV=production`, build with `npm run build`, and run `npm start`; the server serves `dist/` and `/api`. Do **not** set `VITE_API_URL` or `ALLOWED_ORIGIN` in that case.
+You can run the API as a Vercel serverless function with **Turso** by re-adding the `/api` rewrite and using the `api/` handler (see git history or `vercel.json`). This setup is more fragile (sessions, body parsing, cold starts); the recommended approach is frontend on Vercel + backend on Render.
 
 ## Tech stack
 
