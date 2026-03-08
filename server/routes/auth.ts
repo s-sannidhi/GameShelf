@@ -18,11 +18,11 @@ router.post('/register', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
-    const existingEmail = await db.select().from(users).where(eq(users.email, email.trim().toLowerCase())).limit(1);
+    const existingEmail = await (db.select().from(users).where(eq(users.email, email.trim().toLowerCase())) as unknown as { limit(n: number): Promise<typeof users.$inferSelect[]> }).limit(1);
     if (existingEmail.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
     }
-    const existingUsername = await db.select().from(users).where(eq(users.username, username.trim())).limit(1);
+    const existingUsername = await (db.select().from(users).where(eq(users.username, username.trim())) as unknown as { limit(n: number): Promise<typeof users.$inferSelect[]> }).limit(1);
     if (existingUsername.length > 0) {
       return res.status(409).json({ error: 'Username already taken' });
     }
@@ -60,7 +60,7 @@ router.post('/login', async (req, res) => {
     if (!email?.trim() || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
-    const [user] = await db.select().from(users).where(eq(users.email, email.trim().toLowerCase())).limit(1);
+    const [user] = await (db.select().from(users).where(eq(users.email, email.trim().toLowerCase())) as unknown as { limit(n: number): Promise<typeof users.$inferSelect[]> }).limit(1);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -102,7 +102,7 @@ router.get('/me', requireAuth, async (req, res) => {
     const userId = (req.session as SessionWithUserId)?.userId;
     if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const q1 = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
-    const [row] = await (q1 as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
+    const [row] = await (q1 as unknown as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -113,7 +113,7 @@ router.get('/me', requireAuth, async (req, res) => {
       steamId: row.steamId ?? null,
       psnLinked: Boolean(row.psnRefreshToken?.trim()),
     };
-    (res as { json: (b: unknown) => void }).json(user);
+    (res as unknown as { json: (b: unknown) => void }).json(user);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to get user' });
@@ -129,9 +129,9 @@ router.patch('/me', requireAuth, async (req, res) => {
       if (body.steamId === null || (typeof body.steamId === 'string' && !body.steamId.trim())) {
         await db.update(users).set({ steamId: null }).where(eq(users.id, userId));
         const qu = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
-        const [u] = await (qu as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
+        const [u] = await (qu as unknown as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
         if (!u) return res.status(401).json({ error: 'Not authenticated' });
-        return (res as { json: (b: unknown) => void }).json({
+        return (res as unknown as { json: (b: unknown) => void }).json({
           id: u.id,
           username: u.username,
           email: u.email,
@@ -155,11 +155,11 @@ router.patch('/me', requireAuth, async (req, res) => {
       await db.update(users).set({ steamId: steamId64 }).where(eq(users.id, userId));
     }
     const q2 = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
-    const [row] = await (q2 as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
+    const [row] = await (q2 as unknown as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    (res as { json: (b: unknown) => void }).json({
+    (res as unknown as { json: (b: unknown) => void }).json({
       id: row.id,
       username: row.username,
       email: row.email,

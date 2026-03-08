@@ -26,7 +26,7 @@ router.post('/auto', async (req, res) => {
   const userId = (req.session as SessionWithUserId)?.userId;
   if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
   const q = db.select({ steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
-  const [user] = await (q as { limit(n: number): Promise<{ steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
+  const [user] = await (q as unknown as { limit(n: number): Promise<{ steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
   if (!user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
