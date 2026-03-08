@@ -13,15 +13,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const app = await getApp();
     const nodeReq = req as unknown as import('http').IncomingMessage & { url?: string; headers?: Record<string, string | string[] | undefined> };
     const nodeRes = res as unknown as import('http').ServerResponse;
-    // Rewrite sends all /api/* here; preserve original path so Express can route (req.url may be /api after rewrite)
-    let path = nodeReq.url ?? (req as { url?: string }).url ?? '/';
-    const orig = (nodeReq.headers?.['x-vercel-original-url'] ?? nodeReq.headers?.['x-url']) as string | undefined;
-    if (orig && (path === '/api' || path === '/api/')) path = orig;
-    if (!path.startsWith('/api')) {
-      nodeReq.url = '/api' + (path.startsWith('/') ? path : '/' + path);
-    } else {
-      nodeReq.url = path;
-    }
+    // Rewrite sends /api/:path* to /api?__path=:path* so we get the path in query
+    const pathSeg = (req.query?.__path as string) ?? '';
+    const q = { ...req.query } as Record<string, string>;
+    delete q.__path;
+    const queryString = Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : '';
+    nodeReq.url = '/api/' + (pathSeg || '').replace(/\/$/, '') + queryString;
     return new Promise((resolve, reject) => {
       nodeRes.on('finish', () => resolve());
       nodeRes.on('error', reject);
