@@ -53,6 +53,7 @@ async function createApp(): Promise<express.Express> {
   app.set('trust proxy', 1);
   const allowedOrigin = process.env.ALLOWED_ORIGIN ?? process.env.FRONTEND_URL ?? '';
   const isCrossOrigin = Boolean(isProd && allowedOrigin);
+  const forceSameSiteNone = process.env.SESSION_SAME_SITE_NONE === '1' || process.env.SESSION_SAME_SITE_NONE === 'true';
   app.use(
     cors({
       origin: isCrossOrigin ? allowedOrigin.split(',').map((o) => o.trim()).filter(Boolean) : true,
@@ -67,7 +68,7 @@ async function createApp(): Promise<express.Express> {
     express.json()(req, res, next);
   });
   // Cross-origin (e.g. Vercel frontend + Render backend): cookie must be SameSite=None; Secure so browser sends it
-  const sessionCookieSameSite = isCrossOrigin ? ('none' as const) : ('lax' as const);
+  const sessionCookieSameSite = isCrossOrigin || forceSameSiteNone ? ('none' as const) : ('lax' as const);
   const sessionMiddleware = require('express-session') as (options: {
     store: SessionStoreLike;
     secret: string;
@@ -83,7 +84,7 @@ async function createApp(): Promise<express.Express> {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: isProd || isCrossOrigin,
+        secure: isProd || isCrossOrigin || sessionCookieSameSite === 'none',
         sameSite: sessionCookieSameSite,
         path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -93,6 +94,9 @@ async function createApp(): Promise<express.Express> {
 
   app.get('/api/health', (_req, res) => {
     res.status(200).json({ ok: true });
+  });
+  app.get('/favicon.ico', (_req, res) => {
+    res.status(204).send();
   });
   app.use('/api/auth', authRouter);
   app.use('/api/games', gamesRouter);
