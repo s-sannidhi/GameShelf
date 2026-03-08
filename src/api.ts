@@ -108,6 +108,19 @@ export const steamApi = {
     get<Array<{ appId: number; name: string; playtimeMinutes: number; coverUrl: string }>>(
       `/steam/owned-games${steamId ? `?steamid=${encodeURIComponent(steamId)}` : ''}`
     ),
+  /** Fetch official art, screenshots, and metadata from Steam Store by app ID (for any game, e.g. cross-platform). */
+  getStoreArt: (appId: number) =>
+    get<{
+      boxArtUrl: string;
+      coverUrl: string;
+      screenshots: string[];
+      description?: string | null;
+      developer?: string | null;
+      publisher?: string | null;
+      releaseDate?: string | null;
+      genres?: string | null;
+      storeUrl?: string | null;
+    }>(`/steam/store-art/${appId}`),
   sync: (steamId?: string, rememberForAutoSync?: boolean) =>
     post<{ added: number; updated: number; total: number }>(
       '/steam/sync',

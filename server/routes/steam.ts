@@ -58,10 +58,23 @@ export interface SteamStoreArt {
   boxArtUrl: string;
   coverUrl: string;
   screenshots: string[];
+  description?: string | null;
+  developer?: string | null;
+  publisher?: string | null;
+  releaseDate?: string | null;
+  genres?: string | null;
+  storeUrl?: string | null;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
- * Fetch official art and screenshots from Steam Store API (no key required).
+ * Fetch official art, screenshots, and metadata from Steam Store API (no key required).
  * Returns null if app not found or request fails.
  */
 export async function fetchSteamStoreArt(appId: number): Promise<SteamStoreArt | null> {
@@ -75,6 +88,11 @@ export async function fetchSteamStoreArt(appId: number): Promise<SteamStoreArt |
     const d = entry.data as {
       header_image?: string;
       screenshots?: Array<{ path_full?: string }>;
+      short_description?: string;
+      developers?: string[];
+      publishers?: string[];
+      release_date?: { date?: string };
+      genres?: Array<{ description?: string }>;
     };
     const header = d.header_image?.trim() || steamHeaderUrl(appId);
     const capsule = steamCapsuleUrl(appId);
@@ -84,10 +102,30 @@ export async function fetchSteamStoreArt(appId: number): Promise<SteamStoreArt |
         if (s.path_full?.trim()) screenshots.push(s.path_full.trim());
       }
     }
+    const description = d.short_description?.trim()
+      ? stripHtml(d.short_description)
+      : null;
+    const developer = Array.isArray(d.developers) && d.developers.length > 0
+      ? d.developers.filter(Boolean).join(', ')
+      : null;
+    const publisher = Array.isArray(d.publishers) && d.publishers.length > 0
+      ? d.publishers.filter(Boolean).join(', ')
+      : null;
+    const releaseDate = d.release_date?.date?.trim() || null;
+    const genres = Array.isArray(d.genres) && d.genres.length > 0
+      ? d.genres.map((g) => g.description).filter(Boolean).join(', ')
+      : null;
+    const storeUrl = `https://store.steampowered.com/app/${appId}`;
     return {
       boxArtUrl: capsule,
       coverUrl: header,
       screenshots,
+      description: description || undefined,
+      developer: developer || undefined,
+      publisher: publisher || undefined,
+      releaseDate: releaseDate || undefined,
+      genres: genres || undefined,
+      storeUrl,
     };
   } catch {
     return null;
@@ -235,6 +273,16 @@ export async function runSteamSyncForUser(
         boxArtUrl = igdbArt;
       }
     }
+    const metaFromSteam = steamStoreArt
+      ? {
+          ...(steamStoreArt.description != null && { description: steamStoreArt.description }),
+          ...(steamStoreArt.developer != null && { developer: steamStoreArt.developer }),
+          ...(steamStoreArt.publisher != null && { publisher: steamStoreArt.publisher }),
+          ...(steamStoreArt.releaseDate != null && { releaseDate: steamStoreArt.releaseDate }),
+          ...(steamStoreArt.genres != null && { genres: steamStoreArt.genres }),
+          ...(steamStoreArt.storeUrl != null && { storeUrl: steamStoreArt.storeUrl }),
+        }
+      : {};
     if (existing.length > 0) {
       const existingGame = existing[0];
       // Preserve manually set art: only overwrite cover/boxArt/screenshots if the game has none yet
@@ -253,6 +301,7 @@ export async function runSteamSyncForUser(
           source: 'steam',
           platform: 'Steam',
           ...(canonicalId && { canonicalId }),
+          ...metaFromSteam,
           updatedAt: now,
         })
         .where(eq(games.id, existingGame.id));
@@ -269,6 +318,7 @@ export async function runSteamSyncForUser(
         boxArtUrl,
         screenshots: screenshotsJson,
         playtimeMinutes: playtimeMinutes || null,
+        ...metaFromSteam,
         createdAt: now,
         updatedAt: now,
       });

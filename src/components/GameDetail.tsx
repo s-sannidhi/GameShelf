@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Game, MetadataSearchResult } from '../types';
-import { gamesApi, metadataApi } from '../api';
+import { gamesApi, metadataApi, steamApi } from '../api';
 
 const CAROUSEL_INTERVAL_MS = 4000;
 
@@ -26,6 +26,9 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
   const [applyingArt, setApplyingArt] = useState(false);
   const [refreshArtLoading, setRefreshArtLoading] = useState(false);
   const [refreshArtError, setRefreshArtError] = useState<string | null>(null);
+  const [steamAppIdInput, setSteamAppIdInput] = useState('');
+  const [steamStoreArtLoading, setSteamStoreArtLoading] = useState(false);
+  const [steamStoreArtError, setSteamStoreArtError] = useState<string | null>(null);
 
   function parseScreenshots(s: string | null | undefined): string[] {
     if (!s?.trim()) return [];
@@ -57,6 +60,10 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
       setArtResults(null);
       setArtError(null);
       setRefreshArtError(null);
+      setSteamStoreArtError(null);
+      setSteamAppIdInput(
+        game.source === 'steam' && game.externalId ? String(game.externalId).trim() : ''
+      );
       const stored = parseScreenshots(game.screenshots);
       const fallback = game.boxArtUrl ?? game.coverUrl;
       if (stored.length > 0) {
@@ -139,6 +146,51 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
       setRefreshArtError(e instanceof Error ? e.message : 'Failed to refresh art');
     } finally {
       setRefreshArtLoading(false);
+    }
+  };
+
+  const handleSteamStoreArt = async () => {
+    if (!game) return;
+    const appId = parseInt(steamAppIdInput.trim(), 10);
+    if (isNaN(appId) || appId <= 0) {
+      setSteamStoreArtError('Enter a valid Steam App ID (e.g. from store.steampowered.com/app/12345)');
+      return;
+    }
+    setSteamStoreArtLoading(true);
+    setSteamStoreArtError(null);
+    try {
+      const art = await steamApi.getStoreArt(appId);
+      const screenshotsJson =
+        art.screenshots.length > 0 ? JSON.stringify(art.screenshots) : null;
+      const updated = await gamesApi.update(game.id, {
+        coverUrl: art.coverUrl,
+        boxArtUrl: art.boxArtUrl,
+        screenshots: screenshotsJson,
+        ...(art.description != null && { description: art.description }),
+        ...(art.developer != null && { developer: art.developer }),
+        ...(art.publisher != null && { publisher: art.publisher }),
+        ...(art.releaseDate != null && { releaseDate: art.releaseDate }),
+        ...(art.genres != null && { genres: art.genres }),
+        ...(art.storeUrl != null && { storeUrl: art.storeUrl }),
+      });
+      const images =
+        art.screenshots.length > 0 ? art.screenshots : [art.boxArtUrl, art.coverUrl].filter(Boolean);
+      setCarouselImages(images);
+      setCarouselIndex(0);
+      setForm((f) => ({
+        ...f,
+        description: updated.description ?? f.description,
+        developer: updated.developer ?? f.developer,
+        publisher: updated.publisher ?? f.publisher,
+        releaseDate: updated.releaseDate ?? f.releaseDate,
+        genres: updated.genres ?? f.genres,
+        storeUrl: updated.storeUrl ?? f.storeUrl,
+      }));
+      onUpdate(updated);
+    } catch (e) {
+      setSteamStoreArtError(e instanceof Error ? e.message : 'Steam store art not found for this App ID');
+    } finally {
+      setSteamStoreArtLoading(false);
     }
   };
 
@@ -425,6 +477,37 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
                     : 'Refresh art from IGDB'}
               </button>
               {refreshArtError && <p className="detail-art-search-error">{refreshArtError}</p>}
+              <div className="detail-steam-store-art" style={{ marginTop: '1rem' }}>
+                <h4 style={{ marginBottom: '0.5rem', fontSize: '0.95rem' }}>Try Steam store art</h4>
+                <p className="detail-art-search-hint">
+                  For cross-platform games (or any game on Steam), enter the Steam App ID to pull official store art and screenshots. Find the ID in the store URL: store.steampowered.com/app/<strong>12345</strong>
+                </p>
+                <div className="detail-art-search-form" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="Steam App ID (e.g. 12345)"
+                    value={steamAppIdInput}
+                    onChange={(e) => setSteamAppIdInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSteamStoreArt()}
+                    className="detail-art-search-input"
+                    aria-label="Steam App ID"
+                    style={{ maxWidth: '12rem' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleSteamStoreArt}
+                    disabled={steamStoreArtLoading || !steamAppIdInput.trim()}
+                  >
+                    {steamStoreArtLoading ? 'Fetching…' : 'Fetch from Steam store'}
+                  </button>
+                </div>
+                {steamStoreArtError && (
+                  <p className="detail-art-search-error" style={{ marginTop: '0.5rem' }}>
+                    {steamStoreArtError}
+                  </p>
+                )}
+              </div>
             </section>
             <section className="detail-section detail-art-search">
               <h3>Search for art</h3>
