@@ -42,13 +42,13 @@ async function runMigrationsTurso(): Promise<void> {
   `);
 
   const tableInfo = await client.execute({ sql: 'PRAGMA table_info(games)', args: [] });
-  const columns = (tableInfo.rows as { name: string }[]).map((r) => r.name);
+  const columns = (tableInfo.rows as unknown as { name: string }[]).map((r) => r.name);
   if (!columns.includes('user_id')) await client.execute('ALTER TABLE games ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;');
   if (!columns.includes('box_art_url')) await client.execute('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
   if (!columns.includes('canonical_id')) await client.execute('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
 
   const userTableInfo = await client.execute({ sql: 'PRAGMA table_info(users)', args: [] });
-  const userColumns = (userTableInfo.rows as { name: string }[]).map((r) => r.name);
+  const userColumns = (userTableInfo.rows as unknown as { name: string }[]).map((r) => r.name);
   if (!userColumns.includes('steam_id')) await client.execute('ALTER TABLE users ADD COLUMN steam_id TEXT;');
   if (!userColumns.includes('psn_refresh_token')) await client.execute('ALTER TABLE users ADD COLUMN psn_refresh_token TEXT;');
 
@@ -76,7 +76,7 @@ async function runMigrationsTurso(): Promise<void> {
   `);
 
   const countResult = await client.execute({ sql: 'SELECT COUNT(*) as c FROM users', args: [] });
-  const row = countResult.rows[0] as { c: number } | undefined;
+  const row = countResult.rows[0] as unknown as { c: number } | undefined;
   const userCount = row?.c ?? 0;
   if (userCount === 0) {
     const hash = bcrypt.hashSync('changeme', 10);

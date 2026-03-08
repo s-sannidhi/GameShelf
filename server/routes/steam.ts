@@ -289,7 +289,7 @@ router.post('/sync', async (req, res) => {
         await db.update(users).set({ steamId: steamId64 }).where(eq(users.id, userId));
       }
     } else {
-      const [userRow] = await db.select({ steamId: users.steamId }).from(users).where(eq(users.id, userId)).limit(1);
+      const [userRow] = await (db.select({ steamId: users.steamId }).from(users).where(eq(users.id, userId)) as unknown as { limit(n: number): Promise<{ steamId: string | null }[]> }).limit(1);
       if (!userRow?.steamId?.trim()) {
         return res.status(400).json({
           error: 'Steam profile link or ID required. Paste your Steam profile URL (steamcommunity.com/id/YourName) or your 64-bit ID, or save one in Profile.',

@@ -1,12 +1,13 @@
 /// <reference path="./types/express-session.d.ts" />
 import dotenv from 'dotenv';
 import express from 'express';
-import session from 'express-session';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// @ts-expect-error connect-sqlite3 has no type defs
+import { createRequire } from 'node:module';
 import connectSqlite3 from 'connect-sqlite3';
+
+const require = createRequire(import.meta.url);
 import { runMigrations } from './db/migrate.js';
 import gamesRouter from './routes/games.js';
 import metadataRouter from './routes/metadata.js';
@@ -31,13 +32,19 @@ async function createApp(): Promise<express.Express> {
   const sessionSecret = process.env.SESSION_SECRET || 'dev-secret-change-in-production';
   const isProd = process.env.NODE_ENV === 'production';
 
-  let sessionStore: session.Store;
+  type SessionStoreLike = {
+    get(sid: string, callback: (err: unknown, session?: unknown) => void): void;
+    set(sid: string, session: unknown, callback?: (err?: unknown) => void): void;
+    destroy(sid: string, callback?: (err?: unknown) => void): void;
+  };
+  let sessionStore: SessionStoreLike;
   if (useTurso) {
     const { client } = await import('./db/turso.js');
     const { TursoSessionStore } = await import('./session-turso.js');
     sessionStore = new TursoSessionStore(client);
   } else {
-    const SQLiteStore = connectSqlite3(session);
+    const sessionModule = require('express-session') as (opts: object) => express.RequestHandler;
+    const SQLiteStore = connectSqlite3(sessionModule);
     sessionStore = new SQLiteStore({ db: 'sessions.db', dir: './data' });
   }
 
@@ -50,8 +57,15 @@ async function createApp(): Promise<express.Express> {
     })
   );
   app.use(express.json());
+  const sessionMiddleware = require('express-session') as (options: {
+    store: SessionStoreLike;
+    secret: string;
+    resave: boolean;
+    saveUninitialized: boolean;
+    cookie: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; maxAge: number };
+  }) => express.RequestHandler;
   app.use(
-    session({
+    sessionMiddleware({
       store: sessionStore,
       secret: sessionSecret,
       resave: false,
