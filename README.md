@@ -59,7 +59,7 @@ A web app to manage your game library. Sign in with an account, add games (with 
 5. **Environment variables** (in Render dashboard):
    - `NODE_ENV` = `production`
    - `SESSION_SECRET` = a long random string (e.g. `openssl rand -hex 32`)
-   - `ALLOWED_ORIGIN` = your Vercel URL, e.g. `https://your-app.vercel.app` (no trailing slash)
+   - `ALLOWED_ORIGIN` = your Vercel URL, e.g. `https://your-app.vercel.app` (no trailing slash). Required so the session cookie works across origins (otherwise you’ll get “not authenticated” after login).
    - Optional: `RAWG_API_KEY`, `STEAM_API_KEY`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (see `.env.example`)
 6. Deploy. The server creates `data/library.db` and `data/sessions.db` on the ephemeral disk. For **persistent data**, add a **Disk** in Render and mount it (e.g. `data`), or use **Turso** (see below).
 7. Copy your backend URL (e.g. `https://your-app.onrender.com`).

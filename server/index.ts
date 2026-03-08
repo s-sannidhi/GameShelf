@@ -52,9 +52,10 @@ async function createApp(): Promise<express.Express> {
   const app = express();
   app.set('trust proxy', 1);
   const allowedOrigin = process.env.ALLOWED_ORIGIN ?? process.env.FRONTEND_URL ?? '';
+  const isCrossOrigin = Boolean(isProd && allowedOrigin);
   app.use(
     cors({
-      origin: isProd && allowedOrigin ? allowedOrigin.split(',').map((o) => o.trim()).filter(Boolean) : true,
+      origin: isCrossOrigin ? allowedOrigin.split(',').map((o) => o.trim()).filter(Boolean) : true,
       credentials: true,
     })
   );
@@ -65,12 +66,14 @@ async function createApp(): Promise<express.Express> {
     }
     express.json()(req, res, next);
   });
+  // Cross-origin (e.g. Vercel frontend + Render backend): cookie must be SameSite=None; Secure so browser sends it
+  const sessionCookieSameSite = isCrossOrigin ? ('none' as const) : ('lax' as const);
   const sessionMiddleware = require('express-session') as (options: {
     store: SessionStoreLike;
     secret: string;
     resave: boolean;
     saveUninitialized: boolean;
-    cookie: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; path: string; maxAge: number };
+    cookie: { httpOnly: boolean; secure: boolean; sameSite: 'lax' | 'none'; path: string; maxAge: number };
   }) => express.RequestHandler;
   app.use(
     sessionMiddleware({
@@ -80,8 +83,8 @@ async function createApp(): Promise<express.Express> {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
+        secure: isProd || isCrossOrigin,
+        sameSite: sessionCookieSameSite,
         path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000,
       },
