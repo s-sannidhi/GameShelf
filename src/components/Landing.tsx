@@ -68,7 +68,7 @@ export function Landing() {
 
       <section className="landing-highlights" aria-label="Highlights">
         <div className="landing-highlights-inner">
-          {HIGHLIGHTS.map((item, i) => (
+          {HIGHLIGHTS.map((item) => (
             <span key={item} className="landing-highlight-pill">{item}</span>
           ))}
         </div>
