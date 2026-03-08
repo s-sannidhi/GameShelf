@@ -1,3 +1,4 @@
+import type { Response } from 'express';
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
@@ -8,6 +9,16 @@ import type { SessionWithUserId } from '../types/session.js';
 
 const router = Router();
 const SALT_ROUNDS = 10;
+
+function sendJson(res: Response, body: unknown): void {
+  if (res.headersSent) return;
+  try {
+    (res as unknown as { json: (b: unknown) => void }).json(body);
+  } catch (e) {
+    console.error('[auth] sendJson', e);
+    if (!res.headersSent) res.status(500).json({ error: 'Response failed' });
+  }
+}
 
 router.post('/register', async (req, res) => {
   try {
@@ -43,14 +54,18 @@ router.post('/register', async (req, res) => {
     (req.session as SessionWithUserId).userId = user.id;
     (req.session as { save: (cb: (err?: Error) => void) => void }).save((err) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Registration failed' });
+        console.error('[auth] register session.save', err);
+        if (!res.headersSent) res.status(500).json({ error: 'Registration failed' });
+        return;
       }
-      res.status(201).json({ id: user.id, username: user.username, email: user.email });
+      if (!res.headersSent) {
+        res.status(201);
+        sendJson(res, { id: user.id, username: user.username, email: user.email });
+      }
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Registration failed' });
+    console.error('[auth] register', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Registration failed' });
   }
 });
 
@@ -71,14 +86,15 @@ router.post('/login', async (req, res) => {
     (req.session as SessionWithUserId).userId = user.id;
     (req.session as { save: (cb: (err?: Error) => void) => void }).save((err) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Login failed' });
+        console.error('[auth] login session.save', err);
+        if (!res.headersSent) res.status(500).json({ error: 'Login failed' });
+        return;
       }
-      res.json({ id: user.id, username: user.username, email: user.email });
+      sendJson(res, { id: user.id, username: user.username, email: user.email });
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('[auth] login', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Login failed' });
   }
 });
 
@@ -100,7 +116,9 @@ router.post('/logout', (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const userId = (req.session as SessionWithUserId)?.userId;
-    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
+    if (userId == null) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
     const q1 = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
     const [row] = await (q1 as unknown as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
     if (!row) {
@@ -113,10 +131,10 @@ router.get('/me', requireAuth, async (req, res) => {
       steamId: row.steamId ?? null,
       psnLinked: Boolean(row.psnRefreshToken?.trim()),
     };
-    (res as unknown as { json: (b: unknown) => void }).json(user);
+    sendJson(res, user);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to get user' });
+    console.error('[auth] get /me', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to get user' });
   }
 });
 
@@ -131,7 +149,7 @@ router.patch('/me', requireAuth, async (req, res) => {
         const qu = db.select({ id: users.id, username: users.username, email: users.email, steamId: users.steamId, psnRefreshToken: users.psnRefreshToken }).from(users).where(eq(users.id, userId));
         const [u] = await (qu as unknown as { limit(n: number): Promise<{ id: number; username: string; email: string; steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
         if (!u) return res.status(401).json({ error: 'Not authenticated' });
-        return (res as unknown as { json: (b: unknown) => void }).json({
+        return sendJson(res, {
           id: u.id,
           username: u.username,
           email: u.email,
@@ -159,7 +177,7 @@ router.patch('/me', requireAuth, async (req, res) => {
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    (res as unknown as { json: (b: unknown) => void }).json({
+    sendJson(res, {
       id: row.id,
       username: row.username,
       email: row.email,
@@ -167,8 +185,8 @@ router.patch('/me', requireAuth, async (req, res) => {
       psnLinked: Boolean(row.psnRefreshToken?.trim()),
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update profile' });
+    console.error('[auth] patch /me', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

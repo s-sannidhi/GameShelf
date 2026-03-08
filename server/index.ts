@@ -95,7 +95,9 @@ async function createApp(): Promise<express.Express> {
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('[Express]', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
+    if (res.headersSent) return;
+    const message = isProd ? 'Server error' : (err instanceof Error ? err.message : 'Server error');
+    res.status(500).json({ error: message });
   });
 
   if (isProd && !isVercel) {

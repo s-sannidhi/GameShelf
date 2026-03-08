@@ -26,6 +26,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     });
   } catch (err) {
     console.error('[api]', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
+    if (!res.headersSent) {
+      const isProd = process.env.NODE_ENV === 'production';
+      const message = isProd ? 'Server error' : (err instanceof Error ? err.message : 'Server error');
+      res.status(500).json({ error: message });
+    }
   }
 }
