@@ -11,12 +11,16 @@ function getApp() {
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     const app = await getApp();
-    const nodeReq = req as unknown as import('http').IncomingMessage;
+    const nodeReq = req as unknown as import('http').IncomingMessage & { url?: string; headers?: Record<string, string | string[] | undefined> };
     const nodeRes = res as unknown as import('http').ServerResponse;
-    // Ensure Express sees the full path (Vercel may pass path without /api prefix)
-    const path = nodeReq.url ?? req.url ?? '/';
+    // Rewrite sends all /api/* here; preserve original path so Express can route (req.url may be /api after rewrite)
+    let path = nodeReq.url ?? (req as { url?: string }).url ?? '/';
+    const orig = (nodeReq.headers?.['x-vercel-original-url'] ?? nodeReq.headers?.['x-url']) as string | undefined;
+    if (orig && (path === '/api' || path === '/api/')) path = orig;
     if (!path.startsWith('/api')) {
       nodeReq.url = '/api' + (path.startsWith('/') ? path : '/' + path);
+    } else {
+      nodeReq.url = path;
     }
     return new Promise((resolve, reject) => {
       nodeRes.on('finish', () => resolve());
