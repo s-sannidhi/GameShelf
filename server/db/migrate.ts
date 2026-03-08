@@ -23,7 +23,31 @@ export function runMigrations(): void {
     );
   `);
 
-  // Add user_id to games if column doesn't exist (SQLite doesn't support IF NOT EXISTS for columns)
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL DEFAULT 1 REFERENCES users(id),
+      external_id TEXT,
+      canonical_id TEXT,
+      name TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'Other',
+      source TEXT NOT NULL DEFAULT 'manual',
+      cover_url TEXT,
+      box_art_url TEXT,
+      description TEXT,
+      release_date TEXT,
+      genres TEXT,
+      playtime_minutes INTEGER,
+      completed_at TEXT,
+      rating INTEGER,
+      notes TEXT,
+      store_url TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  // Add columns to games if they don't exist (SQLite doesn't support IF NOT EXISTS for columns)
   const tableInfo = sqlite.prepare("PRAGMA table_info(games)").all() as { name: string }[];
   const hasUserId = tableInfo.some((c) => c.name === 'user_id');
   if (!hasUserId) {
