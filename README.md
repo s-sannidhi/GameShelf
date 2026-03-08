@@ -91,6 +91,16 @@ Run everything on one Node host (e.g. Render only): build with `npm run build`, 
 
 You can run the API as a Vercel serverless function with **Turso** by re-adding the `/api` rewrite and using the `api/` handler (see git history or `vercel.json`). This setup is more fragile (sessions, body parsing, cold starts); the recommended approach is frontend on Vercel + backend on Render.
 
+### Troubleshooting "401 Unauthorized" after login (Vercel + Render)
+
+1. **Backend env (Render):** Set `ALLOWED_ORIGIN` to your **exact** Vercel URL (e.g. `https://your-app.vercel.app`, no trailing slash). Add `SESSION_SAME_SITE_NONE=1` so the session cookie is sent cross-origin. Redeploy.
+2. **Check session:** After logging in from the Vercel site, open in the same tab:  
+   `https://your-backend.onrender.com/api/auth/session-check`  
+   You should see `{ "cookieSent": true, "hasSession": true, "hasUserId": true }`.  
+   - If `cookieSent` is false, the browser is not sending the cookie (wrong ALLOWED_ORIGIN or cookie attributes).  
+   - If `cookieSent` is true but `hasSession` or `hasUserId` is false, the session store may have lost data (e.g. Render restarted with ephemeral disk).
+3. **Clear cookies** for both sites and log in again from the Vercel URL.
+
 ## Tech stack
 
 - **Frontend**: React, Vite, Tailwind CSS, Framer Motion.

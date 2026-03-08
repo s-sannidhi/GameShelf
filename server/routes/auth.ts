@@ -20,6 +20,24 @@ function sendJson(res: Response, body: unknown): void {
   }
 }
 
+/** Debug: no auth. Server cookie config (for cross-origin troubleshooting). */
+router.get('/cookie-config', (_req, res) => {
+  const allowed = process.env.ALLOWED_ORIGIN ?? process.env.FRONTEND_URL ?? '';
+  const forceNone = process.env.SESSION_SAME_SITE_NONE === '1' || process.env.SESSION_SAME_SITE_NONE === 'true';
+  const crossOrigin = Boolean(allowed.trim());
+  const sameSite = crossOrigin || forceNone ? 'none' : 'lax';
+  sendJson(res, { crossOrigin, sameSite, hasAllowedOrigin: crossOrigin });
+});
+
+/** Debug: no auth. Shows if cookie was sent and if session exists (for cross-origin cookie troubleshooting). */
+router.get('/session-check', (req, res) => {
+  const cookieHeader = req.headers.cookie ?? '';
+  const cookieSent = /connect\.sid=([^\s;]+)/.test(cookieHeader);
+  const session = req.session as SessionWithUserId | undefined;
+  const hasUserId = Boolean(session?.userId);
+  sendJson(res, { cookieSent, hasSession: !!req.session, hasUserId });
+});
+
 router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body as { username?: string; email?: string; password?: string };

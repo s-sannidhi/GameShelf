@@ -52,11 +52,13 @@ async function createApp(): Promise<express.Express> {
   const app = express();
   app.set('trust proxy', 1);
   const allowedOrigin = process.env.ALLOWED_ORIGIN ?? process.env.FRONTEND_URL ?? '';
-  const isCrossOrigin = Boolean(isProd && allowedOrigin);
+  // When ALLOWED_ORIGIN is set, frontend is on another domain (e.g. Vercel) → use SameSite=None for cookie
+  const isCrossOrigin = Boolean(allowedOrigin.trim());
   const forceSameSiteNone = process.env.SESSION_SAME_SITE_NONE === '1' || process.env.SESSION_SAME_SITE_NONE === 'true';
+  const corsOrigin = isCrossOrigin ? allowedOrigin.split(',').map((o) => o.trim()).filter(Boolean) : true;
   app.use(
     cors({
-      origin: isCrossOrigin ? allowedOrigin.split(',').map((o) => o.trim()).filter(Boolean) : true,
+      origin: corsOrigin,
       credentials: true,
     })
   );
@@ -84,7 +86,7 @@ async function createApp(): Promise<express.Express> {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: isProd || isCrossOrigin || sessionCookieSameSite === 'none',
+        secure: sessionCookieSameSite === 'none' ? true : isProd,
         sameSite: sessionCookieSameSite,
         path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -130,6 +132,8 @@ if (!isVercel) {
   const PORT = process.env.PORT || 3001;
   createApp().then((app) => {
     app.listen(PORT, () => {
+      const allowed = process.env.ALLOWED_ORIGIN ?? process.env.FRONTEND_URL ?? '';
+      if (allowed) console.log('CORS + session cookie: allowed origin(s)', allowed);
       console.log(`Server running at http://localhost:${PORT}`);
       const hasRawg = process.env.RAWG_API_KEY?.trim() || process.env.rawg_api_key?.trim();
       const hasSteam = process.env.STEAM_API_KEY?.trim() || process.env.steam_api_key?.trim();
