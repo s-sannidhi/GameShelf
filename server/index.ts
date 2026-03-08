@@ -109,7 +109,8 @@ async function createApp(): Promise<express.Express> {
 
   if (isProd && !isVercel) {
     app.use(express.static(path.join(__dirname, '../dist')));
-    app.get('*', (_req, res) => {
+    // Express 5 path-to-regexp requires named catch-all: use /{*path} not *
+    app.get('/{*path}', (_req, res) => {
       res.sendFile(path.join(__dirname, '../dist/index.html'));
     });
   }

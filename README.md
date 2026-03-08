@@ -54,7 +54,7 @@ A web app to manage your game library. Sign in with an account, add games (with 
 
 1. Go to [Render](https://render.com) → **New** → **Web Service**.
 2. Connect your GitHub repo and select this project.
-3. **Build command:** `npm install`
+3. **Build command:** `npm install` (do not use `npm run build` here—frontend is on Vercel).
 4. **Start command:** `npm start`
 5. **Environment variables** (in Render dashboard):
    - `NODE_ENV` = `production`
