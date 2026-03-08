@@ -1,11 +1,14 @@
+import { EventEmitter } from 'events';
 import type { Client } from '@libsql/client';
 
 const oneDay = 86400000;
 
-/** Minimal store interface compatible with express-session. */
-export class TursoSessionStore {
+/** Session store for Turso; extends EventEmitter so express-session can call store.on(). */
+export class TursoSessionStore extends EventEmitter {
   private table = 'sessions';
-  constructor(private client: Client) {}
+  constructor(private client: Client) {
+    super();
+  }
 
   get(sid: string, callback: (err: unknown, session?: unknown) => void): void {
     const now = Date.now();
