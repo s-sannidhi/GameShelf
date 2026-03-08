@@ -93,6 +93,11 @@ async function createApp(): Promise<express.Express> {
   app.use('/api/sync', syncRouter);
   app.use('/api/friends', friendsRouter);
 
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('[Express]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
+  });
+
   if (isProd && !isVercel) {
     app.use(express.static(path.join(__dirname, '../dist')));
     app.get('*', (_req, res) => {

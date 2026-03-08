@@ -18,15 +18,20 @@ export class TursoSessionStore extends EventEmitter {
         args: [sid, now],
       })
       .then((result) => {
-        const row = result.rows[0] as unknown as { sess: string } | undefined;
+        const row = result.rows[0] as unknown as { sess?: string } | undefined;
         if (!row) return callback(null, null);
+        const raw = row.sess;
+        if (raw == null) return callback(null, null);
         try {
-          callback(null, JSON.parse(row.sess));
+          callback(null, JSON.parse(raw));
         } catch (e) {
-          callback(e, null);
+          callback(null, null);
         }
       })
-      .catch(callback);
+      .catch((err) => {
+        console.error('[TursoSessionStore] get error:', err);
+        callback(null, null);
+      });
   }
 
   set(sid: string, session: unknown, callback?: (err?: unknown) => void): void {
