@@ -9,10 +9,22 @@ function getApp() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  const app = await getApp();
-  return new Promise((resolve, reject) => {
-    res.on('finish', () => resolve());
-    res.on('error', reject);
-    app(req as unknown as import('http').IncomingMessage, res as unknown as import('http').ServerResponse);
-  });
+  try {
+    const app = await getApp();
+    const nodeReq = req as unknown as import('http').IncomingMessage;
+    const nodeRes = res as unknown as import('http').ServerResponse;
+    // Ensure Express sees the full path (Vercel may pass path without /api prefix)
+    const path = nodeReq.url ?? req.url ?? '/';
+    if (!path.startsWith('/api')) {
+      nodeReq.url = '/api' + (path.startsWith('/') ? path : '/' + path);
+    }
+    return new Promise((resolve, reject) => {
+      nodeRes.on('finish', () => resolve());
+      nodeRes.on('error', reject);
+      app(nodeReq, nodeRes);
+    });
+  } catch (err) {
+    console.error('[api]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
+  }
 }

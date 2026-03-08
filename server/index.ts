@@ -79,6 +79,9 @@ async function createApp(): Promise<express.Express> {
     })
   );
 
+  app.get('/api/health', (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
   app.use('/api/auth', authRouter);
   app.use('/api/games', gamesRouter);
   app.use('/api/metadata', metadataRouter);
