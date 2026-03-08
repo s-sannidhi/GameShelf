@@ -1,18 +1,103 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { existsSync, mkdirSync } from 'fs';
 import bcrypt from 'bcrypt';
 
-const dataDir = path.join(process.cwd(), 'data');
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
+const tursoUrl = process.env.TURSO_DATABASE_URL ?? process.env.LIBSQL_URL;
+const tursoToken = process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN;
+const useTurso = Boolean(tursoUrl && tursoToken);
+
+async function runMigrationsTurso(): Promise<void> {
+  const { createClient } = await import('@libsql/client');
+  const client = createClient({ url: tursoUrl!, authToken: tursoToken! });
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL DEFAULT 1 REFERENCES users(id),
+      external_id TEXT,
+      canonical_id TEXT,
+      name TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'Other',
+      source TEXT NOT NULL DEFAULT 'manual',
+      cover_url TEXT,
+      box_art_url TEXT,
+      description TEXT,
+      release_date TEXT,
+      genres TEXT,
+      playtime_minutes INTEGER,
+      completed_at TEXT,
+      rating INTEGER,
+      notes TEXT,
+      store_url TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  const tableInfo = await client.execute({ sql: 'PRAGMA table_info(games)', args: [] });
+  const columns = (tableInfo.rows as { name: string }[]).map((r) => r.name);
+  if (!columns.includes('user_id')) await client.execute('ALTER TABLE games ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;');
+  if (!columns.includes('box_art_url')) await client.execute('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
+  if (!columns.includes('canonical_id')) await client.execute('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
+
+  const userTableInfo = await client.execute({ sql: 'PRAGMA table_info(users)', args: [] });
+  const userColumns = (userTableInfo.rows as { name: string }[]).map((r) => r.name);
+  if (!userColumns.includes('steam_id')) await client.execute('ALTER TABLE users ADD COLUMN steam_id TEXT;');
+  if (!userColumns.includes('psn_refresh_token')) await client.execute('ALTER TABLE users ADD COLUMN psn_refresh_token TEXT;');
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS friendships (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      friend_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL
+    );
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_user_id INTEGER NOT NULL REFERENCES users(id),
+      to_user_id INTEGER NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL
+    );
+  `);
+  await client.execute('DROP TABLE IF EXISTS sync_log;');
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (sid PRIMARY KEY, expired, sess);
+  `);
+
+  const countResult = await client.execute({ sql: 'SELECT COUNT(*) as c FROM users', args: [] });
+  const row = countResult.rows[0] as { c: number } | undefined;
+  const userCount = row?.c ?? 0;
+  if (userCount === 0) {
+    const hash = bcrypt.hashSync('changeme', 10);
+    const now = new Date().toISOString();
+    await client.execute({
+      sql: 'INSERT INTO users (id, username, email, password_hash, created_at) VALUES (1, ?, ?, ?, ?)',
+      args: ['imported', 'imported@local', hash, now],
+    });
+    console.log('[DB] Created default user: username=imported, password=changeme (change after first login)');
+  }
 }
 
-const dbPath = path.join(dataDir, 'library.db');
-const sqlite = new Database(dbPath);
+function runMigrationsSqlite(): void {
+  const Database = require('better-sqlite3') as typeof import('better-sqlite3');
+  const path = require('path');
+  const { existsSync, mkdirSync } = require('fs');
 
-export function runMigrations(): void {
-  // Create users table if not exists
+  const dataDir = path.join(process.cwd(), 'data');
+  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+  const sqlite = new Database(path.join(dataDir, 'library.db'));
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +107,6 @@ export function runMigrations(): void {
       created_at TEXT NOT NULL
     );
   `);
-
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS games (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,30 +131,15 @@ export function runMigrations(): void {
     );
   `);
 
-  // Add columns to games if they don't exist (SQLite doesn't support IF NOT EXISTS for columns)
-  const tableInfo = sqlite.prepare("PRAGMA table_info(games)").all() as { name: string }[];
-  const hasUserId = tableInfo.some((c) => c.name === 'user_id');
-  if (!hasUserId) {
-    sqlite.exec(`ALTER TABLE games ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;`);
-  }
-  const hasBoxArtUrl = tableInfo.some((c) => c.name === 'box_art_url');
-  if (!hasBoxArtUrl) {
-    sqlite.exec(`ALTER TABLE games ADD COLUMN box_art_url TEXT;`);
-  }
-  const hasCanonicalId = tableInfo.some((c) => c.name === 'canonical_id');
-  if (!hasCanonicalId) {
-    sqlite.exec(`ALTER TABLE games ADD COLUMN canonical_id TEXT;`);
-  }
+  const tableInfo = sqlite.prepare('PRAGMA table_info(games)').all() as { name: string }[];
+  if (!tableInfo.some((c) => c.name === 'user_id')) sqlite.exec('ALTER TABLE games ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;');
+  if (!tableInfo.some((c) => c.name === 'box_art_url')) sqlite.exec('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
+  if (!tableInfo.some((c) => c.name === 'canonical_id')) sqlite.exec('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
 
-  const userTableInfo = sqlite.prepare("PRAGMA table_info(users)").all() as { name: string }[];
-  if (!userTableInfo.some((c) => c.name === 'steam_id')) {
-    sqlite.exec(`ALTER TABLE users ADD COLUMN steam_id TEXT;`);
-  }
-  if (!userTableInfo.some((c) => c.name === 'psn_refresh_token')) {
-    sqlite.exec(`ALTER TABLE users ADD COLUMN psn_refresh_token TEXT;`);
-  }
+  const userTableInfo = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+  if (!userTableInfo.some((c) => c.name === 'steam_id')) sqlite.exec('ALTER TABLE users ADD COLUMN steam_id TEXT;');
+  if (!userTableInfo.some((c) => c.name === 'psn_refresh_token')) sqlite.exec('ALTER TABLE users ADD COLUMN psn_refresh_token TEXT;');
 
-  // Create friendships if not exists
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS friendships (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,8 +148,6 @@ export function runMigrations(): void {
       created_at TEXT NOT NULL
     );
   `);
-
-  // Create friend_requests if not exists
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS friend_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,20 +157,22 @@ export function runMigrations(): void {
       created_at TEXT NOT NULL
     );
   `);
+  sqlite.exec('DROP TABLE IF EXISTS sync_log;');
 
-  // Drop sync_log if exists (legacy)
-  sqlite.exec(`DROP TABLE IF EXISTS sync_log;`);
-
-  // Seed default user (id 1) for existing games if no users exist
-  const userCount = (sqlite.prepare("SELECT COUNT(*) as c FROM users").get() as { c: number }).c;
+  const userCount = (sqlite.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
   if (userCount === 0) {
     const hash = bcrypt.hashSync('changeme', 10);
     const now = new Date().toISOString();
-    sqlite.prepare(
-      "INSERT INTO users (id, username, email, password_hash, created_at) VALUES (1, ?, ?, ?, ?)"
-    ).run('imported', 'imported@local', hash, now);
+    sqlite.prepare('INSERT INTO users (id, username, email, password_hash, created_at) VALUES (1, ?, ?, ?, ?)').run('imported', 'imported@local', hash, now);
     console.log('[DB] Created default user: username=imported, password=changeme (change after first login)');
   }
-
   sqlite.close();
+}
+
+export async function runMigrations(): Promise<void> {
+  if (useTurso) {
+    await runMigrationsTurso();
+  } else {
+    runMigrationsSqlite();
+  }
 }

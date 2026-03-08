@@ -16,6 +16,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@tailwindcss/vite": "^4.2.1",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.6.2",
@@ -33,6 +34,7 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@vercel/node": "^3.2.0",
     "@eslint/js": "^9.39.1",
     "@types/bcrypt": "^6.0.0",
     "@types/better-sqlite3": "^7.6.13",

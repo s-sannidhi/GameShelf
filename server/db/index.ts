@@ -1,13 +1,8 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import * as schema from './schema';
-import path from 'path';
-import { mkdirSync, existsSync } from 'fs';
+const tursoUrl = process.env.TURSO_DATABASE_URL ?? process.env.LIBSQL_URL;
+const tursoToken = process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN;
+const useTurso = Boolean(tursoUrl && tursoToken);
 
-const dataDir = path.join(process.cwd(), 'data');
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
-}
-
-const sqlite = new Database(path.join(dataDir, 'library.db'));
-export const db = drizzle(sqlite, { schema });
+// Load only one driver so Vercel doesn't pull in native better-sqlite3
+export const { db } = useTurso
+  ? await import('./turso')
+  : await import('./sqlite');
