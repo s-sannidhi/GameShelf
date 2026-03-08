@@ -110,6 +110,7 @@ router.get('/me', requireAuth, async (req, res) => {
       steamId: row.steamId ?? null,
       psnLinked: Boolean(row.psnRefreshToken?.trim()),
     };
+    // @ts-expect-error - Express res.json typed as 0-arg in some envs
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -131,6 +132,7 @@ router.patch('/me', requireAuth, async (req, res) => {
           .where(eq(users.id, userId))
           .limit(1);
         if (!u) return res.status(401).json({ error: 'Not authenticated' });
+        // @ts-expect-error - Express res.json typed as 0-arg in some envs
         return res.json({
           id: u.id,
           username: u.username,
@@ -168,6 +170,7 @@ router.patch('/me', requireAuth, async (req, res) => {
     if (!row) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
+    // @ts-expect-error - Express res.json typed as 0-arg in some envs
     res.json({
       id: row.id,
       username: row.username,

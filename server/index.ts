@@ -1,4 +1,5 @@
 /// <reference path="./types/express-session.d.ts" />
+/// <reference path="./types/express.d.ts" />
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';

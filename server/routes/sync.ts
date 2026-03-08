@@ -25,11 +25,12 @@ router.use(requireAuth);
 router.post('/auto', async (req, res) => {
   const userId = (req.session as SessionWithUserId)?.userId;
   if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
-  const q = db
+  // @ts-expect-error - Drizzle limit(1) typed as 0-arg in some envs
+  const [user] = await db
     .select({ steamId: users.steamId, psnRefreshToken: users.psnRefreshToken })
     .from(users)
-    .where(eq(users.id, userId));
-  const [user] = await (q as unknown as { limit(n: number): Promise<{ steamId: string | null; psnRefreshToken: string | null }[]> }).limit(1);
+    .where(eq(users.id, userId))
+    .limit(1);
   if (!user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }

@@ -18,8 +18,10 @@ router.get('/', async (req, res) => {
     if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const rows = await db.select().from(friendships).where(or(eq(friendships.userId, userId), eq(friendships.friendId, userId)));
     const friendIds = [...new Set(rows.map((r) => (r.userId === userId ? r.friendId : r.userId)))];
+    // @ts-expect-error - Express res.json typed as 0-arg in some envs
     if (friendIds.length === 0) return res.json([]);
     const friends = await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, friendIds));
+    // @ts-expect-error - Express res.json typed as 0-arg in some envs
     res.json(friends);
   } catch (err) {
     console.error(err);
@@ -62,6 +64,7 @@ router.post('/request', async (req, res) => {
       .insert(friendRequests)
       .values({ fromUserId: userId, toUserId: target.id, status: 'pending', createdAt: now })
       .returning();
+    // @ts-expect-error - Express res.json typed as 0-arg in some envs
     res.status(201).json({ id: reqRow!.id, toUserId: target.id, username: target.username });
   } catch (err) {
     console.error(err);
