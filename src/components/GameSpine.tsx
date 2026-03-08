@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Game } from '../types';
 
@@ -7,7 +8,10 @@ interface GameSpineProps {
 }
 
 export function GameSpine({ game, onClick }: GameSpineProps) {
-  const coverUrl = game.coverUrl || undefined;
+  const spineUrl = game.spineCoverUrl?.trim() || undefined;
+  const fallbackUrl = game.coverUrl || undefined;
+  const [useFallback, setUseFallback] = useState(false);
+  const coverUrl = useFallback ? fallbackUrl : (spineUrl || fallbackUrl);
 
   return (
     <motion.button
@@ -23,7 +27,14 @@ export function GameSpine({ game, onClick }: GameSpineProps) {
       <div className="spine-inner">
         <div className="spine-cover">
           {coverUrl ? (
-            <img src={coverUrl} alt="" loading="lazy" />
+            <img
+              src={coverUrl}
+              alt=""
+              loading="lazy"
+              onError={() => {
+                if (!useFallback && spineUrl && fallbackUrl) setUseFallback(true);
+              }}
+            />
           ) : (
             <div className="spine-placeholder">
               <span>{game.name.slice(0, 2).toUpperCase()}</span>

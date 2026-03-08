@@ -82,6 +82,7 @@ router.post('/', async (req, res) => {
       canonicalId?: string;
       coverUrl?: string;
       boxArtUrl?: string;
+      spineCoverUrl?: string;
       screenshots?: string[];
       description?: string;
       releaseDate?: string;
@@ -113,6 +114,7 @@ router.post('/', async (req, res) => {
         canonicalId,
         coverUrl: body.coverUrl ?? null,
         boxArtUrl: body.boxArtUrl ?? null,
+        spineCoverUrl: body.spineCoverUrl ?? null,
         screenshots: screenshotsVal,
         description: body.description ?? null,
         releaseDate: body.releaseDate ?? null,
@@ -149,6 +151,7 @@ router.patch('/:id/refresh-art', async (req, res) => {
     const now = new Date().toISOString();
     let coverUrl: string | null = null;
     let boxArtUrl: string | null = null;
+    let spineCoverUrl: string | null = null;
     let screenshotsJson: string | null = null;
     if (game.source === 'steam' && game.externalId != null && /^\d+$/.test(String(game.externalId).trim())) {
       const appId = parseInt(String(game.externalId), 10);
@@ -156,6 +159,7 @@ router.patch('/:id/refresh-art', async (req, res) => {
       if (steamArt) {
         coverUrl = steamArt.coverUrl;
         boxArtUrl = steamArt.boxArtUrl;
+        spineCoverUrl = steamArt.spineCoverUrl;
         screenshotsJson = steamArt.screenshots.length > 0 ? JSON.stringify(steamArt.screenshots) : null;
       }
     }
@@ -174,6 +178,7 @@ router.patch('/:id/refresh-art', async (req, res) => {
       .set({
         coverUrl,
         boxArtUrl,
+        ...(spineCoverUrl != null && { spineCoverUrl }),
         ...(screenshotsJson != null && { screenshots: screenshotsJson }),
         updatedAt: now,
       })
@@ -198,6 +203,7 @@ router.patch('/:id', async (req, res) => {
       platform: string;
       coverUrl: string;
       boxArtUrl: string;
+      spineCoverUrl: string;
       screenshots: string[];
       canonicalId: string;
       description: string;

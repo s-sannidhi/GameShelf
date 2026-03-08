@@ -47,6 +47,7 @@ async function runMigrationsTurso(): Promise<void> {
   if (!columns.includes('box_art_url')) await client.execute('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
   if (!columns.includes('canonical_id')) await client.execute('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
   if (!columns.includes('screenshots')) await client.execute('ALTER TABLE games ADD COLUMN screenshots TEXT;');
+  if (!columns.includes('spine_cover_url')) await client.execute('ALTER TABLE games ADD COLUMN spine_cover_url TEXT;');
   if (!columns.includes('developer')) await client.execute('ALTER TABLE games ADD COLUMN developer TEXT;');
   if (!columns.includes('publisher')) await client.execute('ALTER TABLE games ADD COLUMN publisher TEXT;');
   if (!columns.includes('trailer_url')) await client.execute('ALTER TABLE games ADD COLUMN trailer_url TEXT;');
@@ -141,6 +142,7 @@ function runMigrationsSqlite(): void {
   if (!tableInfo.some((c) => c.name === 'box_art_url')) sqlite.exec('ALTER TABLE games ADD COLUMN box_art_url TEXT;');
   if (!tableInfo.some((c) => c.name === 'canonical_id')) sqlite.exec('ALTER TABLE games ADD COLUMN canonical_id TEXT;');
   if (!tableInfo.some((c) => c.name === 'screenshots')) sqlite.exec('ALTER TABLE games ADD COLUMN screenshots TEXT;');
+  if (!tableInfo.some((c) => c.name === 'spine_cover_url')) sqlite.exec('ALTER TABLE games ADD COLUMN spine_cover_url TEXT;');
   if (!tableInfo.some((c) => c.name === 'developer')) sqlite.exec('ALTER TABLE games ADD COLUMN developer TEXT;');
   if (!tableInfo.some((c) => c.name === 'publisher')) sqlite.exec('ALTER TABLE games ADD COLUMN publisher TEXT;');
   if (!tableInfo.some((c) => c.name === 'trailer_url')) sqlite.exec('ALTER TABLE games ADD COLUMN trailer_url TEXT;');

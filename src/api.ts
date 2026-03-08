@@ -113,6 +113,7 @@ export const steamApi = {
     get<{
       boxArtUrl: string;
       coverUrl: string;
+      spineCoverUrl: string;
       screenshots: string[];
       description?: string | null;
       developer?: string | null;

@@ -16,6 +16,7 @@ export interface Game {
   source: string;
   coverUrl: string | null;
   boxArtUrl: string | null;
+  spineCoverUrl: string | null; // vertical 600x900 for shelf spine (e.g. Steam library art)
   screenshots: string | null; // JSON array of URLs
   description: string | null;
   releaseDate: string | null;

@@ -20,6 +20,7 @@ export const games = sqliteTable('games', {
   source: text('source').notNull().default('manual'),
   coverUrl: text('cover_url'),
   boxArtUrl: text('box_art_url'),
+  spineCoverUrl: text('spine_cover_url'), // vertical 600x900 for shelf spine (e.g. Steam library art)
   screenshots: text('screenshots'), // JSON array of image URLs
   description: text('description'),
   releaseDate: text('release_date'),

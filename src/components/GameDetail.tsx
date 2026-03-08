@@ -165,6 +165,7 @@ export function GameDetail({ game, onClose, onUpdate, onDelete }: GameDetailProp
       const updated = await gamesApi.update(game.id, {
         coverUrl: art.coverUrl,
         boxArtUrl: art.boxArtUrl,
+        spineCoverUrl: art.spineCoverUrl,
         screenshots: screenshotsJson,
         ...(art.description != null && { description: art.description }),
         ...(art.developer != null && { developer: art.developer }),

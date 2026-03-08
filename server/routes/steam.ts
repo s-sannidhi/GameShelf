@@ -54,9 +54,15 @@ function steamHeroCapsuleUrl(appId: number): string {
   return `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/hero_capsule.jpg`;
 }
 
+/** Steam library vertical cover (600x900) – best for shelf spines / box covers. Not all apps have it. */
+export function steamLibraryCoverUrl(appId: number): string {
+  return `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg`;
+}
+
 export interface SteamStoreArt {
   boxArtUrl: string;
   coverUrl: string;
+  spineCoverUrl: string; // vertical 600x900 for shelf
   screenshots: string[];
   description?: string | null;
   developer?: string | null;
@@ -116,9 +122,11 @@ export async function fetchSteamStoreArt(appId: number): Promise<SteamStoreArt |
       ? d.genres.map((g) => g.description).filter(Boolean).join(', ')
       : null;
     const storeUrl = `https://store.steampowered.com/app/${appId}`;
+    const spineCoverUrl = steamLibraryCoverUrl(appId);
     return {
       boxArtUrl: capsule,
       coverUrl: header,
+      spineCoverUrl,
       screenshots,
       description: description || undefined,
       developer: developer || undefined,
@@ -273,6 +281,7 @@ export async function runSteamSyncForUser(
         boxArtUrl = igdbArt;
       }
     }
+    const spineCoverUrl = steamStoreArt?.spineCoverUrl ?? null;
     const metaFromSteam = steamStoreArt
       ? {
           ...(steamStoreArt.description != null && { description: steamStoreArt.description }),
@@ -285,10 +294,11 @@ export async function runSteamSyncForUser(
       : {};
     if (existing.length > 0) {
       const existingGame = existing[0];
-      // Preserve manually set art: only overwrite cover/boxArt/screenshots if the game has none yet
+      // Preserve manually set art: only overwrite cover/boxArt/screenshots/spine if the game has none yet
       const keepCover = existingGame.coverUrl?.trim();
       const keepBoxArt = existingGame.boxArtUrl?.trim();
       const keepScreenshots = existingGame.screenshots?.trim();
+      const keepSpine = existingGame.spineCoverUrl?.trim();
       await db
         .update(games)
         .set({
@@ -296,6 +306,7 @@ export async function runSteamSyncForUser(
           coverUrl: keepCover ? existingGame.coverUrl : coverUrl,
           boxArtUrl: keepBoxArt ? existingGame.boxArtUrl : boxArtUrl,
           screenshots: keepScreenshots ? existingGame.screenshots : screenshotsJson,
+          spineCoverUrl: keepSpine ? existingGame.spineCoverUrl : spineCoverUrl,
           playtimeMinutes: (playtimeMinutes || existingGame.playtimeMinutes) ?? null,
           externalId,
           source: 'steam',
@@ -316,6 +327,7 @@ export async function runSteamSyncForUser(
         canonicalId: canonicalId ?? null,
         coverUrl,
         boxArtUrl,
+        spineCoverUrl,
         screenshots: screenshotsJson,
         playtimeMinutes: playtimeMinutes || null,
         ...metaFromSteam,
