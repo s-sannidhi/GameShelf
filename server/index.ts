@@ -17,6 +17,8 @@ import playstationRouter from './routes/playstation.js';
 import syncRouter from './routes/sync.js';
 import authRouter from './routes/auth.js';
 import friendsRouter from './routes/friends.js';
+import { verifyAuthToken } from './auth-token.js';
+import type { SessionWithUserId } from './types/session.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -99,6 +101,17 @@ async function createApp(): Promise<express.Express> {
       },
     })
   );
+
+  // Token auth fallback for cross-origin (cookie often not sent). If Authorization: Bearer <token>, set session.userId for this request.
+  app.use((req, _res, next) => {
+    const auth = req.headers.authorization;
+    const token = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : null;
+    if (token) {
+      const userId = verifyAuthToken(token);
+      if (userId != null) (req.session as SessionWithUserId).userId = userId;
+    }
+    next();
+  });
 
   app.get('/api/health', (_req, res) => {
     res.status(200).json({ ok: true });

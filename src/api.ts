@@ -4,9 +4,25 @@ import type { Game, MetadataSearchResult, User, Friend, FriendRequest, MutualGam
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const API = `${API_BASE}/api`;
 const credentials: RequestCredentials = 'include';
+const AUTH_TOKEN_KEY = 'auth_token';
+
+function getAuthHeader(): string | undefined {
+  if (typeof localStorage === 'undefined') return undefined;
+  const t = localStorage.getItem(AUTH_TOKEN_KEY);
+  return t ? `Bearer ${t}` : undefined;
+}
+
+export function setAuthToken(token: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
+  else localStorage.removeItem(AUTH_TOKEN_KEY);
+}
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`, { credentials });
+  const headers: Record<string, string> = {};
+  const auth = getAuthHeader();
+  if (auth) headers['Authorization'] = auth;
+  const res = await fetch(`${API}${path}`, { credentials, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error((err as { error?: string }).error || res.statusText);
@@ -15,9 +31,12 @@ async function get<T>(path: string): Promise<T> {
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const auth = getAuthHeader();
+  if (auth) headers['Authorization'] = auth;
   const res = await fetch(`${API}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     credentials,
   });
@@ -30,9 +49,12 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const auth = getAuthHeader();
+  if (auth) headers['Authorization'] = auth;
   const res = await fetch(`${API}${path}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
     credentials,
   });
@@ -44,7 +66,10 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${API}${path}`, { method: 'DELETE', credentials });
+  const headers: Record<string, string> = {};
+  const auth = getAuthHeader();
+  if (auth) headers['Authorization'] = auth;
+  const res = await fetch(`${API}${path}`, { method: 'DELETE', credentials, headers });
   if (!res.ok && res.status !== 204) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error((err as { error?: string }).error || res.statusText);

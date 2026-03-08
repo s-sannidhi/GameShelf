@@ -6,6 +6,7 @@ import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
 import type { SessionWithUserId } from '../types/session.js';
+import { createAuthToken } from '../auth-token.js';
 
 const router = Router();
 const SALT_ROUNDS = 10;
@@ -81,7 +82,8 @@ router.post('/register', async (req, res) => {
       }
       if (!res.headersSent) {
         res.status(201);
-        sendJson(res, { id: user.id, username: user.username, email: user.email });
+        const token = createAuthToken(user.id);
+        sendJson(res, { id: user.id, username: user.username, email: user.email, token });
       }
     });
   } catch (err) {
@@ -114,7 +116,8 @@ router.post('/login', async (req, res) => {
         }
         return;
       }
-      sendJson(res, { id: user.id, username: user.username, email: user.email });
+      const token = createAuthToken(user.id);
+      sendJson(res, { id: user.id, username: user.username, email: user.email, token });
     });
   } catch (err) {
     console.error('[auth] login', err);
