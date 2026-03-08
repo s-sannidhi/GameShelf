@@ -3,7 +3,12 @@ import { db } from '../db/index.js';
 import { games } from '../db/schema.js';
 import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import type { SessionWithUserId } from '../types/session.js';
 import { getIgdbBoxArtForGame } from './metadata.js';
+
+function getUserId(req: { session?: SessionWithUserId }): number | undefined {
+  return (req.session as SessionWithUserId | undefined)?.userId;
+}
 
 const router = Router();
 
@@ -11,7 +16,8 @@ router.use(requireAuth);
 
 router.get('/', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const sortBy = (req.query.sortBy as string) || 'name';
     const sortOrder = (req.query.sortOrder as string) || 'asc';
     const filter = req.query.filter as string;
@@ -50,7 +56,8 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.userId, userId)));
@@ -64,7 +71,8 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const body = req.body as {
       name: string;
       platform?: string;
@@ -119,7 +127,8 @@ router.post('/', async (req, res) => {
 /** PATCH /games/:id/refresh-art – fetch IGDB box art and update game cover/boxArt. */
 router.patch('/:id/refresh-art', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const [game] = await db.select().from(games).where(and(eq(games.id, id), eq(games.userId, userId)));
@@ -144,7 +153,8 @@ router.patch('/:id/refresh-art', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const body = req.body as Partial<{
@@ -179,7 +189,8 @@ router.patch('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const [deleted] = await db

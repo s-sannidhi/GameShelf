@@ -3,13 +3,19 @@ import { db } from '../db/index.js';
 import { users, games, friendships, friendRequests } from '../db/schema.js';
 import { eq, and, or, inArray } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import type { SessionWithUserId } from '../types/session.js';
 
 const router = Router();
 router.use(requireAuth);
 
+function getUserId(req: { session?: SessionWithUserId }): number | undefined {
+  return (req.session as SessionWithUserId | undefined)?.userId;
+}
+
 router.get('/', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const rows = await db.select().from(friendships).where(or(eq(friendships.userId, userId), eq(friendships.friendId, userId)));
     const friendIds = [...new Set(rows.map((r) => (r.userId === userId ? r.friendId : r.userId)))];
     if (friendIds.length === 0) return res.json([]);
@@ -23,7 +29,8 @@ router.get('/', async (req, res) => {
 
 router.post('/request', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const { username } = req.body as { username?: string };
     if (!username?.trim()) {
       return res.status(400).json({ error: 'Username is required' });
@@ -64,7 +71,8 @@ router.post('/request', async (req, res) => {
 
 router.get('/requests', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const list = await db
       .select({
         id: friendRequests.id,
@@ -84,7 +92,8 @@ router.get('/requests', async (req, res) => {
 
 router.post('/requests/:id/accept', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const [reqRow] = await db
@@ -108,7 +117,8 @@ router.post('/requests/:id/accept', async (req, res) => {
 
 router.post('/requests/:id/decline', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const [reqRow] = await db
@@ -127,7 +137,8 @@ router.post('/requests/:id/decline', async (req, res) => {
 
 router.get('/:friendId/mutual-games', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const friendId = parseInt(req.params.friendId, 10);
     if (isNaN(friendId)) return res.status(400).json({ error: 'Invalid friend ID' });
     const isFriend = await db

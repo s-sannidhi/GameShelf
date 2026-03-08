@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import type { SessionWithUserId } from '../types/session.js';
 import { runSteamSyncForUser } from './steam.js';
 import { runPlaystationSyncForUser } from './playstation.js';
 
@@ -22,7 +23,8 @@ router.use(requireAuth);
  * Returns { steam?, playstation?, errors? }. Frontend should refetch games after.
  */
 router.post('/auto', async (req, res) => {
-  const userId = req.session!.userId!;
+  const userId = (req.session as SessionWithUserId)?.userId;
+  if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
   const [user] = await db
     .select({ steamId: users.steamId, psnRefreshToken: users.psnRefreshToken })
     .from(users)

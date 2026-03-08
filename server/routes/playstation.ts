@@ -4,7 +4,12 @@ import { db } from '../db/index.js';
 import { games, users } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import type { SessionWithUserId } from '../types/session.js';
 import { getCanonicalIdForGameName, getIgdbBoxArtForGame } from './metadata.js';
+
+function getUserId(req: { session?: SessionWithUserId }): number | undefined {
+  return (req.session as SessionWithUserId | undefined)?.userId;
+}
 
 const require = createRequire(import.meta.url);
 const {
@@ -152,7 +157,8 @@ export async function runPlaystationSyncForUser(
  */
 router.post('/sync', async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const npsso = (req.body?.npsso as string)?.trim();
     const rememberForAutoSync = Boolean(req.body?.rememberForAutoSync);
     if (!npsso) {

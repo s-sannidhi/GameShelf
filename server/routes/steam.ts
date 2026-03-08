@@ -7,7 +7,12 @@ import { db } from '../db/index.js';
 import { games, users } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import type { SessionWithUserId } from '../types/session.js';
 import { getCanonicalIdForGameName, getIgdbBoxArtForGame } from './metadata.js';
+
+function getUserId(req: { session?: SessionWithUserId }): number | undefined {
+  return (req.session as SessionWithUserId | undefined)?.userId;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -262,7 +267,8 @@ router.get('/owned-games', async (req, res) => {
 router.post('/sync', async (req, res) => {
   try {
     loadEnv();
-    const userId = req.session!.userId!;
+    const userId = getUserId(req);
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const apiKey = (process.env.STEAM_API_KEY ?? process.env.steam_api_key)?.trim();
     if (!apiKey) {
       return res.status(503).json({

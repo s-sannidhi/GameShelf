@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import type { SessionWithUserId } from '../types/session.js';
 
 const router = Router();
 const SALT_ROUNDS = 10;
@@ -39,7 +40,7 @@ router.post('/register', async (req, res) => {
     if (!user) {
       return res.status(500).json({ error: 'Registration failed' });
     }
-    req.session!.userId = user.id;
+    (req.session as SessionWithUserId).userId = user.id;
     res.status(201).json({ id: user.id, username: user.username, email: user.email });
   } catch (err) {
     console.error(err);
@@ -61,7 +62,7 @@ router.post('/login', async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-    req.session!.userId = user.id;
+    (req.session as SessionWithUserId).userId = user.id;
     res.json({ id: user.id, username: user.username, email: user.email });
   } catch (err) {
     console.error(err);
@@ -70,18 +71,24 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  req.session?.destroy((err) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Logout failed' });
-    }
+  const session = req.session as SessionWithUserId | undefined;
+  if (session?.destroy) {
+    session.destroy((err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Logout failed' });
+      }
+      res.status(204).send();
+    });
+  } else {
     res.status(204).send();
-  });
+  }
 });
 
 router.get('/me', requireAuth, async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = (req.session as SessionWithUserId)?.userId;
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const [row] = await db
       .select({
         id: users.id,
@@ -94,7 +101,6 @@ router.get('/me', requireAuth, async (req, res) => {
       .where(eq(users.id, userId))
       .limit(1);
     if (!row) {
-      req.session = undefined;
       return res.status(401).json({ error: 'Not authenticated' });
     }
     const user = {
@@ -113,7 +119,8 @@ router.get('/me', requireAuth, async (req, res) => {
 
 router.patch('/me', requireAuth, async (req, res) => {
   try {
-    const userId = req.session!.userId!;
+    const userId = (req.session as SessionWithUserId)?.userId;
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const body = req.body as { steamId?: string | null };
     if (body.steamId !== undefined) {
       if (body.steamId === null || (typeof body.steamId === 'string' && !body.steamId.trim())) {
@@ -133,7 +140,7 @@ router.patch('/me', requireAuth, async (req, res) => {
         });
       }
       const raw = String(body.steamId).trim();
-      const { resolveToSteamId64 } = await import('./steam');
+      const { resolveToSteamId64 } = await import('./steam.js');
       const dotenv = await import('dotenv');
       const path = await import('path');
       dotenv.config({ path: path.join(process.cwd(), '.env') });

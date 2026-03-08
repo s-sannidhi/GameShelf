@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { SessionWithUserId } from '../types/session.js';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (req.session?.userId == null) {
+  const userId = (req.session as SessionWithUserId | undefined)?.userId;
+  if (userId == null) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
   }
