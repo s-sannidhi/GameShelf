@@ -3,11 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Router } from 'express';
-import { db } from '../db/index';
-import { games, users } from '../db/schema';
+import { db } from '../db/index.js';
+import { games, users } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
-import { requireAuth } from '../middleware/auth';
-import { getCanonicalIdForGameName, getIgdbBoxArtForGame } from './metadata';
+import { requireAuth } from '../middleware/auth.js';
+import { getCanonicalIdForGameName, getIgdbBoxArtForGame } from './metadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();

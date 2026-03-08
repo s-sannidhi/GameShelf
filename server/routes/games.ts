@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { db } from '../db/index';
-import { games } from '../db/schema';
+import { db } from '../db/index.js';
+import { games } from '../db/schema.js';
 import { eq, desc, asc, and } from 'drizzle-orm';
-import { requireAuth } from '../middleware/auth';
-import { getIgdbBoxArtForGame } from './metadata';
+import { requireAuth } from '../middleware/auth.js';
+import { getIgdbBoxArtForGame } from './metadata.js';
 
 const router = Router();
 

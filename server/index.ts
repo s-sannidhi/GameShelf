@@ -1,3 +1,4 @@
+/// <reference path="./types/express-session.d.ts" />
 import dotenv from 'dotenv';
 import express from 'express';
 import session from 'express-session';
@@ -6,14 +7,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 // @ts-expect-error connect-sqlite3 has no type defs
 import connectSqlite3 from 'connect-sqlite3';
-import { runMigrations } from './db/migrate';
-import gamesRouter from './routes/games';
-import metadataRouter from './routes/metadata';
-import steamRouter from './routes/steam';
-import playstationRouter from './routes/playstation';
-import syncRouter from './routes/sync';
-import authRouter from './routes/auth';
-import friendsRouter from './routes/friends';
+import { runMigrations } from './db/migrate.js';
+import gamesRouter from './routes/games.js';
+import metadataRouter from './routes/metadata.js';
+import steamRouter from './routes/steam.js';
+import playstationRouter from './routes/playstation.js';
+import syncRouter from './routes/sync.js';
+import authRouter from './routes/auth.js';
+import friendsRouter from './routes/friends.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -32,8 +33,8 @@ async function createApp(): Promise<express.Express> {
 
   let sessionStore: session.Store;
   if (useTurso) {
-    const { client } = await import('./db/turso');
-    const { TursoSessionStore } = await import('./session-turso');
+    const { client } = await import('./db/turso.js');
+    const { TursoSessionStore } = await import('./session-turso.js');
     sessionStore = new TursoSessionStore(client);
   } else {
     const SQLiteStore = connectSqlite3(session);

@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { db } from '../db/index';
-import { users, games, friendships, friendRequests } from '../db/schema';
+import { db } from '../db/index.js';
+import { users, games, friendships, friendRequests } from '../db/schema.js';
 import { eq, and, or, inArray } from 'drizzle-orm';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -144,7 +144,7 @@ router.get('/:friendId/mutual-games', async (req, res) => {
     const myGames = await db.select().from(games).where(eq(games.userId, userId));
     const theirGames = await db.select().from(games).where(eq(games.userId, friendId));
     const norm = (name: string) => name.trim().toLowerCase();
-    const byName = new Map<string.unknown[]>();
+    const byName = new Map<string, unknown[]>();
     for (const g of myGames) {
       const key = norm(g.name);
       if (!byName.has(key)) byName.set(key, []);

@@ -4,5 +4,5 @@ const useTurso = Boolean(tursoUrl && tursoToken);
 
 // Load only one driver so Vercel doesn't pull in native better-sqlite3
 export const { db } = useTurso
-  ? await import('./turso')
-  : await import('./sqlite');
+  ? await import('./turso.js')
+  : await import('./sqlite.js');
