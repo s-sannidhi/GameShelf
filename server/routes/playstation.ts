@@ -117,19 +117,23 @@ export async function runPlaystationSyncForUser(
       boxArtUrl = igdbArt;
     }
     if (existing.length > 0) {
+      const existingGame = existing[0];
+      // Preserve manually set art: only overwrite cover/boxArt if the game has none yet
+      const keepCover = existingGame.coverUrl?.trim();
+      const keepBoxArt = existingGame.boxArtUrl?.trim();
       await db
         .update(games)
         .set({
           name,
-          coverUrl,
-          boxArtUrl,
+          coverUrl: keepCover ? existingGame.coverUrl : coverUrl,
+          boxArtUrl: keepBoxArt ? existingGame.boxArtUrl : boxArtUrl,
           externalId,
           source: 'playstation',
           platform,
           ...(canonicalId && { canonicalId }),
           updatedAt: now,
         })
-        .where(eq(games.id, existing[0].id));
+        .where(eq(games.id, existingGame.id));
       updated++;
     } else {
       await db.insert(games).values({

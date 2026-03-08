@@ -174,20 +174,24 @@ export async function runSteamSyncForUser(
       boxArtUrl = igdbArt;
     }
     if (existing.length > 0) {
+      const existingGame = existing[0];
+      // Preserve manually set art: only overwrite cover/boxArt if the game has none yet
+      const keepCover = existingGame.coverUrl?.trim();
+      const keepBoxArt = existingGame.boxArtUrl?.trim();
       await db
         .update(games)
         .set({
           name: g.name,
-          coverUrl,
-          boxArtUrl,
-          playtimeMinutes: (playtimeMinutes || existing[0].playtimeMinutes) ?? null,
+          coverUrl: keepCover ? existingGame.coverUrl : coverUrl,
+          boxArtUrl: keepBoxArt ? existingGame.boxArtUrl : boxArtUrl,
+          playtimeMinutes: (playtimeMinutes || existingGame.playtimeMinutes) ?? null,
           externalId,
           source: 'steam',
           platform: 'Steam',
           ...(canonicalId && { canonicalId }),
           updatedAt: now,
         })
-        .where(eq(games.id, existing[0].id));
+        .where(eq(games.id, existingGame.id));
       updated++;
     } else {
       await db.insert(games).values({
