@@ -55,10 +55,16 @@ async function createApp(): Promise<express.Express> {
   // When ALLOWED_ORIGIN is set, frontend is on another domain (e.g. Vercel) → use SameSite=None for cookie
   const isCrossOrigin = Boolean(allowedOrigin.trim());
   const forceSameSiteNone = process.env.SESSION_SAME_SITE_NONE === '1' || process.env.SESSION_SAME_SITE_NONE === 'true';
-  const corsOrigin = isCrossOrigin ? allowedOrigin.split(',').map((o) => o.trim()).filter(Boolean) : true;
+  const allowedList = allowedOrigin.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean);
   app.use(
     cors({
-      origin: corsOrigin,
+      origin: isCrossOrigin
+        ? (origin: string | undefined, cb: (err: Error | null, allow?: boolean | string) => void) => {
+            const o = (origin ?? '').replace(/\/$/, '');
+            const allow = !o || allowedList.some((a) => a === o);
+            cb(null, allow ? (origin || true) : false);
+          }
+        : true,
       credentials: true,
     })
   );
