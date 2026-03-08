@@ -81,63 +81,84 @@ function stripHtml(html: string): string {
 
 /**
  * Fetch official art, screenshots, and metadata from Steam Store API (no key required).
- * Returns null if app not found or request fails.
+ * Returns null if app not found or request fails. Never throws – safe to call in sync loops.
  */
 export async function fetchSteamStoreArt(appId: number): Promise<SteamStoreArt | null> {
+  let text: string;
   try {
     const url = `https://store.steampowered.com/api/appdetails?appids=${appId}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = (await res.json()) as Record<string, { success?: boolean; data?: unknown }>;
-    const entry = data[String(appId)];
-    if (!entry?.success || !entry.data) return null;
-    const d = entry.data as {
-      header_image?: string;
-      screenshots?: Array<{ path_full?: string }>;
-      short_description?: string;
-      developers?: string[];
-      publishers?: string[];
-      release_date?: { date?: string };
-      genres?: Array<{ description?: string }>;
-    };
-    const header = d.header_image?.trim() || steamHeaderUrl(appId);
-    const capsule = steamCapsuleUrl(appId);
-    const screenshots: string[] = [];
-    if (Array.isArray(d.screenshots)) {
-      for (const s of d.screenshots) {
-        if (s.path_full?.trim()) screenshots.push(s.path_full.trim());
+    const res = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'GameShelf/1.0 (https://github.com/game-shelf; library manager)',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[Steam store] app ${appId} status ${res.status}`);
       }
+      return null;
     }
-    const description = d.short_description?.trim()
-      ? stripHtml(d.short_description)
-      : null;
-    const developer = Array.isArray(d.developers) && d.developers.length > 0
-      ? d.developers.filter(Boolean).join(', ')
-      : null;
-    const publisher = Array.isArray(d.publishers) && d.publishers.length > 0
-      ? d.publishers.filter(Boolean).join(', ')
-      : null;
-    const releaseDate = d.release_date?.date?.trim() || null;
-    const genres = Array.isArray(d.genres) && d.genres.length > 0
-      ? d.genres.map((g) => g.description).filter(Boolean).join(', ')
-      : null;
-    const storeUrl = `https://store.steampowered.com/app/${appId}`;
-    const spineCoverUrl = steamLibraryCoverUrl(appId);
-    return {
-      boxArtUrl: capsule,
-      coverUrl: header,
-      spineCoverUrl,
-      screenshots,
-      description: description || undefined,
-      developer: developer || undefined,
-      publisher: publisher || undefined,
-      releaseDate: releaseDate || undefined,
-      genres: genres || undefined,
-      storeUrl,
-    };
-  } catch {
+    text = await res.text();
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[Steam store] fetch failed', err instanceof Error ? err.message : err);
+    }
     return null;
   }
+  let data: Record<string, { success?: boolean; data?: unknown }>;
+  try {
+    data = JSON.parse(text) as Record<string, { success?: boolean; data?: unknown }>;
+  } catch {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[Steam store] response was not JSON (may be rate-limited or blocked)');
+    }
+    return null;
+  }
+  const entry = data[String(appId)];
+  if (!entry?.success || !entry.data || typeof entry.data !== 'object') return null;
+  const d = entry.data as Record<string, unknown>;
+  const header = (d.header_image as string)?.trim() || steamHeaderUrl(appId);
+  const capsule = steamCapsuleUrl(appId);
+  const screenshots: string[] = [];
+  const rawScreenshots = d.screenshots;
+  if (Array.isArray(rawScreenshots)) {
+    for (const s of rawScreenshots) {
+      const path = (s as { path_full?: string })?.path_full?.trim();
+      if (path) screenshots.push(path);
+    }
+  }
+  const shortDesc = (d.short_description as string)?.trim();
+  const description = shortDesc ? stripHtml(shortDesc) : null;
+  const devArr = d.developers;
+  const developer = Array.isArray(devArr) && devArr.length > 0
+    ? devArr.filter(Boolean).join(', ')
+    : null;
+  const pubArr = d.publishers;
+  const publisher = Array.isArray(pubArr) && pubArr.length > 0
+    ? pubArr.filter(Boolean).join(', ')
+    : null;
+  const releaseDateObj = d.release_date as { date?: string } | undefined;
+  const releaseDate = releaseDateObj?.date?.trim() || null;
+  const genresArr = d.genres;
+  const genres = Array.isArray(genresArr) && genresArr.length > 0
+    ? genresArr.map((g) => (g as { description?: string })?.description).filter(Boolean).join(', ')
+    : null;
+  const storeUrl = `https://store.steampowered.com/app/${appId}`;
+  const spineCoverUrl = steamLibraryCoverUrl(appId);
+  return {
+    boxArtUrl: capsule,
+    coverUrl: header,
+    spineCoverUrl,
+    screenshots,
+    description: description || undefined,
+    developer: developer || undefined,
+    publisher: publisher || undefined,
+    releaseDate: releaseDate || undefined,
+    genres: genres || undefined,
+    storeUrl,
+  };
 }
 
 /** 64-bit Steam IDs are 17 digits. */
@@ -194,8 +215,14 @@ export async function runSteamSyncForUser(
   url.searchParams.set('format', 'json');
   url.searchParams.set('include_appinfo', '1');
   const apiRes = await fetch(url.toString());
-  if (!apiRes.ok) throw new Error(`Steam API: ${await apiRes.text()}`);
-  const data = (await apiRes.json()) as { response?: { games?: Array<{ appid: number; name: string; playtime_forever?: number }> } };
+  const responseText = await apiRes.text();
+  if (!apiRes.ok) throw new Error(`Steam API error (${apiRes.status}). Check your Steam API key and that the Steam ID is correct.`);
+  let data: { response?: { games?: Array<{ appid: number; name: string; playtime_forever?: number }> } };
+  try {
+    data = JSON.parse(responseText) as { response?: { games?: Array<{ appid: number; name: string; playtime_forever?: number }> } };
+  } catch {
+    throw new Error('Steam API returned invalid data. Try again in a few minutes.');
+  }
   const list = data.response?.games ?? [];
   const now = new Date().toISOString();
   const canonicalCache = new Map<string, string | null>();
@@ -396,11 +423,17 @@ router.get('/store-art/:appId', async (req, res) => {
     const appId = parseInt(req.params.appId, 10);
     if (isNaN(appId) || appId <= 0) return res.status(400).json({ error: 'Invalid app ID' });
     const art = await fetchSteamStoreArt(appId);
-    if (!art) return res.status(404).json({ error: 'Steam store art not found for this app' });
+    if (!art) {
+      return res.status(503).json({
+        error: 'Steam store art unavailable. The app may not exist, or Steam may be rate-limiting. Try again later or use "Search for art" instead.',
+      });
+    }
     res.json(art);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch Steam store art' });
+    console.error('[Steam store-art]', err);
+    res.status(503).json({
+      error: 'Steam store is temporarily unavailable. Try again in a few minutes.',
+    });
   }
 });
 
@@ -446,8 +479,10 @@ router.post('/sync', async (req, res) => {
     const result = await runSteamSyncForUser(userId, steamId64);
     res.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Steam sync failed' });
+    console.error('[Steam sync]', err);
+    const message = err instanceof Error ? err.message : 'Steam sync failed';
+    const status = message.includes('not configured') || message.includes('Steam API') ? 503 : 500;
+    res.status(status).json({ error: message });
   }
 });
 

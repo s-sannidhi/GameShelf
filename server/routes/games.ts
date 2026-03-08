@@ -243,11 +243,12 @@ router.delete('/:id', async (req, res) => {
     if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-    const [deleted] = await db
-      .delete(games)
-      .where(and(eq(games.id, id), eq(games.userId, userId)))
-      .returning();
-    if (!deleted) return res.status(404).json({ error: 'Game not found' });
+    const existing = await db
+      .select({ id: games.id })
+      .from(games)
+      .where(and(eq(games.id, id), eq(games.userId, userId)));
+    if (existing.length === 0) return res.status(404).json({ error: 'Game not found' });
+    await db.delete(games).where(and(eq(games.id, id), eq(games.userId, userId)));
     res.status(204).send();
   } catch (err) {
     console.error(err);

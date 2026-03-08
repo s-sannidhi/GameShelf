@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { authApi, steamApi, playstationApi, syncApi } from '../api';
+import { authApi, steamApi, playstationApi, syncApi, setAuthToken } from '../api';
 
 const NPSSO_URL = 'https://ca.account.sony.com/api/v1/ssocookie';
 const SIGNIN_URL = 'https://www.playstation.com/';
@@ -10,7 +10,7 @@ interface ProfileSettingsProps {
 }
 
 export function ProfileSettings({ onSynced }: ProfileSettingsProps) {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const [steamInput, setSteamInput] = useState('');
   const [steamSaving, setSteamSaving] = useState(false);
   const [steamSyncLoading, setSteamSyncLoading] = useState(false);
@@ -21,6 +21,9 @@ export function ProfileSettings({ onSynced }: ProfileSettingsProps) {
   const [psnSyncLoading, setPsnSyncLoading] = useState(false);
   const [psnError, setPsnError] = useState<string | null>(null);
   const [psnSuccess, setPsnSuccess] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleSaveSteam = async () => {
     const raw = steamInput.trim();
@@ -196,6 +199,49 @@ export function ProfileSettings({ onSynced }: ProfileSettingsProps) {
         </div>
         {psnError && <p className="profile-error">{psnError}</p>}
         {psnSuccess && <p className="profile-success">PlayStation account linked.</p>}
+      </section>
+
+      <section className="profile-section profile-section-danger">
+        <h3 className="profile-section-title">Delete account</h3>
+        <p className="profile-section-hint">
+          Permanently delete your account and all your games, friends, and data. This cannot be undone.
+        </p>
+        <div className="profile-section-actions" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+          <input
+            type="text"
+            placeholder="Type DELETE to confirm"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            className="profile-input"
+            aria-label="Type DELETE to confirm account deletion"
+            style={{ maxWidth: '16rem' }}
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={async () => {
+              if (deleteConfirm.trim() !== 'DELETE') {
+                setDeleteError('Type DELETE to confirm.');
+                return;
+              }
+              setDeleteLoading(true);
+              setDeleteError(null);
+              try {
+                await authApi.deleteAccount();
+                setAuthToken(null);
+                await logout();
+              } catch (e) {
+                setDeleteError(e instanceof Error ? e.message : 'Failed to delete account');
+              } finally {
+                setDeleteLoading(false);
+              }
+            }}
+            disabled={deleteLoading || deleteConfirm.trim() !== 'DELETE'}
+          >
+            {deleteLoading ? 'Deleting…' : 'Delete my account'}
+          </button>
+        </div>
+        {deleteError && <p className="profile-error">{deleteError}</p>}
       </section>
     </div>
   );

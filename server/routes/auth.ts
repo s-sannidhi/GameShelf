@@ -2,8 +2,8 @@ import type { Response } from 'express';
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
-import { users } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { users, games, friendships, friendRequests } from '../db/schema.js';
+import { eq, and, or } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
 import type { SessionWithUserId } from '../types/session.js';
 import { createAuthToken } from '../auth-token.js';
@@ -220,6 +220,25 @@ router.patch('/me', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[auth] patch /me', err);
     if (!res.headersSent) res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+/** DELETE /api/auth/me – delete the current user's account and all their data (Turso-safe: no RETURNING). */
+router.delete('/me', requireAuth, async (req, res) => {
+  try {
+    const userId = (req.session as SessionWithUserId)?.userId;
+    if (userId == null) return res.status(401).json({ error: 'Not authenticated' });
+    await db.delete(games).where(eq(games.userId, userId));
+    await db.delete(friendships).where(or(eq(friendships.userId, userId), eq(friendships.friendId, userId)));
+    await db.delete(friendRequests).where(or(eq(friendRequests.fromUserId, userId), eq(friendRequests.toUserId, userId)));
+    await db.delete(users).where(eq(users.id, userId));
+    (req.session as { destroy: (cb: (err?: Error) => void) => void }).destroy((err) => {
+      if (err) console.error('[auth] session destroy', err);
+      if (!res.headersSent) res.status(204).send();
+    });
+  } catch (err) {
+    console.error('[auth] delete /me', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 

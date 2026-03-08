@@ -83,6 +83,7 @@ export const authApi = {
   login: (body: { email: string; password: string }) => post<User>('/auth/login', body),
   logout: () => post<void>('/auth/logout'),
   updateProfile: (body: { steamId?: string | null }) => patch<User>('/auth/me', body),
+  deleteAccount: () => del('/auth/me'),
 };
 
 export const gamesApi = {
